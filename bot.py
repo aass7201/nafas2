@@ -784,6 +784,10 @@ async def student_get_subject_files(update: Update, context: ContextTypes.DEFAUL
 
     await query.message.reply_text(
         f"✅ عاشت إيدك، كملنا دز كل ملفات مادة **{subject_name}** بنجاح!\nربي يوفقك ويسهل أمرك بالدراسة 🤍",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"📚 تحميل {cat_info['title'].split()[1]} ثاني", callback_data=f"{cat_key}_menu")],
+            [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="close_menu")]
+        ]),
         parse_mode=ParseMode.MARKDOWN
     )
 
@@ -796,6 +800,63 @@ async def callback_close_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.message.delete()
     except Exception:
         pass
+
+
+async def books_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """العودة لقائمة الكتب والمناهج (زر تحميل كتاب ثاني)"""
+    query = update.callback_query
+    await query.answer()
+
+    cat_info = CATEGORIES["books"]
+    msg = (
+        f"📚 **{cat_info['title']}**\n"
+        f"{cat_info['desc']}\n\n"
+        f"👇 اختر المادة اللي تدور على كتبها وتدلل:"
+    )
+
+    await query.message.edit_text(
+        text=msg,
+        reply_markup=get_subjects_inline_keyboard("books", prefix="get_sub"),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def summaries_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """العودة لقائمة الملخصات والملازم"""
+    query = update.callback_query
+    await query.answer()
+
+    cat_info = CATEGORIES["summaries"]
+    msg = (
+        f"📄 **{cat_info['title']}**\n"
+        f"{cat_info['desc']}\n\n"
+        f"👇 اختر المادة حتى تطلعلك ملازمها ومحاضراتها:"
+    )
+
+    await query.message.edit_text(
+        text=msg,
+        reply_markup=get_subjects_inline_keyboard("summaries", prefix="get_sub"),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def exams_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """العودة لقائمة الأسئلة الامتحانية"""
+    query = update.callback_query
+    await query.answer()
+
+    cat_info = CATEGORIES["exams"]
+    msg = (
+        f"📝 **{cat_info['title']}**\n"
+        f"{cat_info['desc']}\n\n"
+        f"👇 اختر المادة وتطلعلك كل الأسئلة الشهرية والفاينل السابقة:"
+    )
+
+    await query.message.edit_text(
+        text=msg,
+        reply_markup=get_subjects_inline_keyboard("exams", prefix="get_sub"),
+        parse_mode=ParseMode.MARKDOWN
+    )
 
 
 # =============================================================================
@@ -2804,6 +2865,9 @@ def main():
         )
     )
     application.add_handler(CallbackQueryHandler(student_get_subject_files, pattern="^get_sub:"))
+    application.add_handler(CallbackQueryHandler(books_menu_callback, pattern="^books_menu$"))
+    application.add_handler(CallbackQueryHandler(summaries_menu_callback, pattern="^summaries_menu$"))
+    application.add_handler(CallbackQueryHandler(exams_menu_callback, pattern="^exams_menu$"))
     application.add_handler(CallbackQueryHandler(callback_close_menu, pattern="^close_menu$"))
 
     # تشغيل البوت بنظام Polling
