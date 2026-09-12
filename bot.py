@@ -57,14 +57,14 @@ from telegram.ext import (
 #                        1. الإعدادات والمتغيرات العامة
 # =============================================================================
 
-# توكن البوت الخاص بك (يقرأ من متغير البيئة أو يستخدم الافتراضي)
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8897033696:AAHk2wPS82MCzC29vlZ7pY9ex8neyPLa9Z4")
+# توكن البوت الخاص بك (يقرأ من متغير البيئة)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
 # معرف الأدمن (Telegram User ID)
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8993961580"))
 
 # مفتاح Google Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6Kb5bSO2FvMFSvwn9lTTXWL0A9l9T-U56mAyj-t_rwfTw")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # نموذج الذكاء الاصطناعي الأسرع والأخف استجابة
 GEMINI_MODEL = "gemini-3.1-flash-lite"
