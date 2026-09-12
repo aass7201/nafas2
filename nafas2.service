@@ -1,0 +1,20 @@
+[Unit]
+Description=Nafas2 Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/nafas2
+ExecStart=/home/ubuntu/nafas2/venv/bin/python bot.py
+Restart=always
+RestartSec=10
+Environment=BOT_TOKEN=8897033696:AAHk2wPS82MCzC29vlZ7pY9ex8neyPLa9Z4
+Environment=ADMIN_ID=8993961580
+Environment=GEMINI_API_KEY=ضع_مفتاح_Gemini_هنا
+Environment=DB_PATH=nafas2.db
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

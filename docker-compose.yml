@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  nafas2-bot:
+    build: .
+    container_name: nafas2-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=8897033696:AAHk2wPS82MCzC29vlZ7pY9ex8neyPLa9Z4
+      - ADMIN_ID=8993961580
+      - GEMINI_API_KEY=ضع_مفتاح_Gemini_هنا
+      - DB_PATH=nafas2.db
+    volumes:
+      - ./nafas2.db:/app/nafas2.db
+    # للسيرفرات التي تحتاج health check
+    # healthcheck:
+    #   test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+
+# للاستخدام:
+# 1. عدل المتغيرات في هذا الملف أو مررها بـ -e
+# 2. شغل: docker-compose up -d
+# 3. راقب اللوجز: docker-compose logs -f
