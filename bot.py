@@ -3,14 +3,15 @@
 بوت Nafas2 🧠 - المنصة الأكاديمية والدعم النفسي لقسم علم النفس (المرحلة الثانية)
 =============================================================================
 المكتبة المستخدمة: python-telegram-bot (v20+ Async)
-قاعدة البيانات: SQLite3
+قاعدة البيانات: PostgreSQL (Supabase)
 الذكاء الاصطناعي: Google Gemini API (لهجة عراقية داعمة وأكاديمية)
 =============================================================================
 """
 
 import sys
 import logging
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import asyncio
 import json
 import os
@@ -69,8 +70,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # نموذج الذكاء الاصطناعي الأسرع والأخف استجابة
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 
-# مسار ملف قاعدة بيانات SQLite
-DB_PATH = os.getenv("DB_PATH", "nafas2.db")
+# رابط قاعدة بيانات PostgreSQL (Supabase)
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 # إعداد التسجيل (Logging)
 logging.basicConfig(
@@ -137,214 +138,237 @@ def safe_md(text: str) -> str:
 
 
 # =============================================================================
-#                     2. إدارة قاعدة البيانات (SQLite3)
+#                     2. إدارة قاعدة البيانات (PostgreSQL via Supabase)
 # =============================================================================
 
 class DatabaseManager:
-    """فئة إدارة الاتصال وتنفيذ استعلامات قاعدة البيانات SQLite3"""
+    """فئة إدارة الاتصال وتنفيذ استعلامات PostgreSQL"""
 
-    def __init__(self, db_path: str = DB_PATH):
-        self.db_path = db_path
+    def __init__(self, db_url: str = DATABASE_URL):
+        self.db_url = db_url
         self.init_db()
 
-    def get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+    def get_connection(self):
+        conn = psycopg2.connect(self.db_url, cursor_factory=RealDictCursor, sslmode='require')
         return conn
 
     def init_db(self):
-        """إنشاء الجداول التلقائي عند تشغيل البوت لأول مرة"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
+        conn = self.get_connection()
+        cursor = conn.cursor()
 
-            # جدول الطلاب المسجلين
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    user_id INTEGER PRIMARY KEY,
-                    username TEXT,
-                    full_name TEXT,
-                    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                full_name TEXT,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
-            # جدول الملفات المرفوعة
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS files (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_id TEXT NOT NULL,
-                    file_unique_id TEXT,
-                    file_name TEXT,
-                    file_type TEXT NOT NULL,          -- books, summaries, exams
-                    subject TEXT NOT NULL,            -- اسم المادة
-                    media_type TEXT DEFAULT 'document',-- document أو photo
-                    uploaded_by INTEGER,
-                    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS files (
+                id SERIAL PRIMARY KEY,
+                file_id TEXT NOT NULL,
+                file_unique_id TEXT,
+                file_name TEXT,
+                file_type TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                media_type TEXT DEFAULT 'document',
+                uploaded_by BIGINT,
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
-            # جدول التبليغات والجدول الدراسي
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS announcements (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    text TEXT NOT NULL,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS announcements (
+                id SERIAL PRIMARY KEY,
+                text TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
-            # جدول إعدادات البوت (لحفظ المفاتيح مثل Gemini API)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS bot_settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                );
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bot_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        """)
 
-            # جدول الاختبارات والتقييمات النفسية للطلاب (سري)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS psychological_assessments (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    score INTEGER,
-                    category TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS psychological_assessments (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                score INTEGER,
+                category TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
-            # إضافة تبليغ افتراضي إذا كان الجدول فارغاً
-            cursor.execute("SELECT COUNT(*) FROM announcements")
-            if cursor.fetchone()[0] == 0:
-                default_text = (
-                    "📌 **أهلاً بكم زملائنا طلبة المرحلة الثانية (قسم علم النفس)** 🧠✨\n\n"
-                    "سوف يتم نشر أي تبليغات رسمية بخصوص المحاضرات، القاعات، أو الجداول الامتحانية هنا بتحديث مستمر.\n\n"
-                    "نتمنى لكم دوام التوفيق والنجاح والتفوق يا رب! 🤍"
-                )
-                cursor.execute("INSERT INTO announcements (text) VALUES (?)", (default_text,))
+        cursor.execute("SELECT COUNT(*) FROM announcements")
+        if cursor.fetchone()[0] == 0:
+            default_text = (
+                "📌 **أهلاً بكم زملائنا طلبة المرحلة الثانية (قسم علم النفس)** 🧠✨\n\n"
+                "سوف يتم نشر أي تبليغات رسمية بخصوص المحاضرات، القاعات، أو الجداول الامتحانية هنا بتحديث مستمر.\n\n"
+                "نتمنى لكم دوام التوفيق والنجاح والتفوق يا رب! 🤍"
+            )
+            cursor.execute("INSERT INTO announcements (text) VALUES (%s)", (default_text,))
 
-            conn.commit()
-            logger.info("تم التحقق من قاعدة البيانات وإنشاء الجداول بنجاح.")
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("تم التحقق من قاعدة البيانات وإنشاء الجداول بنجاح.")
 
-    # --- دوال المستخدمين ---
     def register_user(self, user_id: int, username: Optional[str], full_name: str):
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO users (user_id, username, full_name)
-                VALUES (?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    username = excluded.username,
-                    full_name = excluded.full_name;
-            """, (user_id, username, full_name))
-            conn.commit()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO users (user_id, username, full_name)
+            VALUES (%s, %s, %s)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username = excluded.username,
+                full_name = excluded.full_name;
+        """, (user_id, username, full_name))
+        conn.commit()
+        cursor.close()
+        conn.close()
 
     def get_all_user_ids(self) -> List[int]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT user_id FROM users")
-            return [row["user_id"] for row in cursor.fetchall()]
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users")
+        result = [row["user_id"] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return result
 
     def get_users_count(self) -> int:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM users")
-            return cursor.fetchone()[0]
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        result = cursor.fetchone()[0]
+        cursor.close()
+        conn.close()
+        return result
 
-    # --- دوال الملفات ---
     def add_file(self, file_id: str, file_unique_id: str, file_name: str,
                  file_type: str, subject: str, media_type: str, uploaded_by: int) -> int:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO files (file_id, file_unique_id, file_name, file_type, subject, media_type, uploaded_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (file_id, file_unique_id, file_name, file_type, subject, media_type, uploaded_by))
-            conn.commit()
-            return cursor.lastrowid
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO files (file_id, file_unique_id, file_name, file_type, subject, media_type, uploaded_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (file_id, file_unique_id, file_name, file_type, subject, media_type, uploaded_by))
+        file_pk = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return file_pk
 
-    def get_files_by_category_and_subject(self, file_type: str, subject: str) -> List[sqlite3.Row]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT * FROM files
-                WHERE file_type = ? AND subject = ?
-                ORDER BY id ASC
-            """, (file_type, subject))
-            return cursor.fetchall()
+    def get_files_by_category_and_subject(self, file_type: str, subject: str) -> List[dict]:
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM files
+            WHERE file_type = %s AND subject = %s
+            ORDER BY id ASC
+        """, (file_type, subject))
+        result = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return result
 
     def get_files_count(self) -> int:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM files")
-            return cursor.fetchone()[0]
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM files")
+        result = cursor.fetchone()[0]
+        cursor.close()
+        conn.close()
+        return result
 
     def get_files_statistics(self) -> Dict[str, Any]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT file_type, COUNT(*) as cnt FROM files GROUP BY file_type")
-            cats = {row["file_type"]: row["cnt"] for row in cursor.fetchall()}
-
-            cursor.execute("SELECT subject, COUNT(*) as cnt FROM files GROUP BY subject")
-            subjs = {row["subject"]: row["cnt"] for row in cursor.fetchall()}
-
-            return {"categories": cats, "subjects": subjs}
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT file_type, COUNT(*) as cnt FROM files GROUP BY file_type")
+        cats = {row["file_type"]: row["cnt"] for row in cursor.fetchall()}
+        cursor.execute("SELECT subject, COUNT(*) as cnt FROM files GROUP BY subject")
+        subjs = {row["subject"]: row["cnt"] for row in cursor.fetchall()}
+        cursor.close()
+        conn.close()
+        return {"categories": cats, "subjects": subjs}
 
     def delete_file(self, file_pk: int) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM files WHERE id = ?", (file_pk,))
-            conn.commit()
-            return cursor.rowcount > 0
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM files WHERE id = %s", (file_pk,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+        cursor.close()
+        conn.close()
+        return deleted
 
-    # --- دوال التبليغات ---
     def get_latest_announcement(self) -> str:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT text FROM announcements ORDER BY id DESC LIMIT 1")
-            row = cursor.fetchone()
-            return row["text"] if row else "ماكو أي تبليغات منشورة حالياً عيني."
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT text FROM announcements ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return row["text"] if row else "ماكو أي تبليغات منشورة حالياً عيني."
 
     def set_announcement(self, text: str):
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO announcements (text) VALUES (?)", (text,))
-            conn.commit()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO announcements (text) VALUES (%s)", (text,))
+        conn.commit()
+        cursor.close()
+        conn.close()
 
-    # --- دوال الإعدادات ---
     def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
-            row = cursor.fetchone()
-            return row["value"] if row else default
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM bot_settings WHERE key = %s", (key,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return row["value"] if row else default
 
     def set_setting(self, key: str, value: str):
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO bot_settings (key, value)
-                VALUES (?, ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value;
-            """, (key, value))
-            conn.commit()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO bot_settings (key, value)
+            VALUES (%s, %s)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+        """, (key, value))
+        conn.commit()
+        cursor.close()
+        conn.close()
 
-    # --- دوال التقييم النفسي ---
     def save_assessment(self, user_id: int, score: int, category: str):
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO psychological_assessments (user_id, score, category)
-                VALUES (?, ?, ?)
-            """, (user_id, score, category))
-            conn.commit()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO psychological_assessments (user_id, score, category)
+            VALUES (%s, %s, %s)
+        """, (user_id, score, category))
+        conn.commit()
+        cursor.close()
+        conn.close()
 
-    def get_latest_assessment(self, user_id: int) -> Optional[sqlite3.Row]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT * FROM psychological_assessments
-                WHERE user_id = ?
-                ORDER BY id DESC LIMIT 1
-            """, (user_id,))
-            return cursor.fetchone()
+    def get_latest_assessment(self, user_id: int) -> Optional[dict]:
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM psychological_assessments
+            WHERE user_id = %s
+            ORDER BY id DESC LIMIT 1
+        """, (user_id,))
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return result
 
 
 # تهيئة مدير قاعدة البيانات
@@ -2682,6 +2706,10 @@ def main():
 
     if BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("⚠️ تنبيه: يرجى وضع BOT_TOKEN الخاص بك داخل الكود أولاً!")
+        return
+
+    if not DATABASE_URL:
+        print("⚠️ تنبيه: يرجى ضبط DATABASE_URL في متغيرات البيئة أولاً!")
         return
 
     application = ApplicationBuilder().token(BOT_TOKEN).build()

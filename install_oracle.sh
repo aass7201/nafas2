@@ -14,7 +14,7 @@ sudo apt update && sudo apt upgrade -y
 
 # تثبيت المتطلبات
 echo "🐍 تثبيت Python والمكتبات..."
-sudo apt install -y python3 python3-venv python3-pip git sqlite3
+sudo apt install -y python3 python3-venv python3-pip git
 
 # إنشاء مجلد المشروع
 PROJECT_DIR="$HOME/nafas2"
@@ -45,7 +45,7 @@ cat > .env << 'ENVEOF'
 BOT_TOKEN=8897033696:AAHk2wPS82MCzC29vlZ7pY9ex8neyPLa9Z4
 ADMIN_ID=8993961580
 GEMINI_API_KEY=ضع_مفتاح_Gemini_هنا
-DB_PATH=nafas2.db
+DATABASE_URL=postgresql://user:password@host:5432/nafas2
 ENVEOF
 
 # تحديث bot.py لقراءة المتغيرات من البيئة
@@ -54,7 +54,7 @@ sed -i '1a import os\nfrom dotenv import load_dotenv\nload_dotenv()' bot.py
 sed -i 's/BOT_TOKEN = ".*"/BOT_TOKEN = os.getenv("BOT_TOKEN")/' bot.py
 sed -i 's/ADMIN_ID = .*/ADMIN_ID = int(os.getenv("ADMIN_ID"))/' bot.py
 sed -i 's/GEMINI_API_KEY = ".*"/GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")/' bot.py
-sed -i 's/DB_PATH = ".*"/DB_PATH = os.getenv("DB_PATH")/' bot.py
+sed -i 's/DATABASE_URL = .*/DATABASE_URL = os.getenv("DATABASE_URL")/' bot.py
 
 # تثبيت python-dotenv
 pip install python-dotenv

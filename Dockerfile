@@ -4,9 +4,7 @@
 FROM python:3.11-slim
 
 # تثبيت المتطلبات النظامية
-RUN apt-get update && apt-get install -y \
-    sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && rm -rf /var/lib/apt/lists/*
 
 # تعيين مجلد العمل
 WORKDIR /app
@@ -29,7 +27,7 @@ USER botuser
 ENV BOT_TOKEN=""
 ENV ADMIN_ID=""
 ENV GEMINI_API_KEY=""
-ENV DB_PATH="nafas2.db"
+ENV DATABASE_URL=""
 
 # الأمر الافتراضي
 CMD ["python", "bot.py"]

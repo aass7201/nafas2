@@ -26,7 +26,7 @@ git push -u origin main
 BOT_TOKEN=8897033696:AAHk2wPS82MCzC29vlZ7pY9ex8neyPLa9Z4
 ADMIN_ID=8993961580
 GEMINI_API_KEY=مفتاحك_الصحيح_من_Google_AI_Studio
-DB_PATH=nafas2.db
+DATABASE_URL=postgresql://user:password@host:5432/nafas2
 ```
 
 ## 4. انشر!
