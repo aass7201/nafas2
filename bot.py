@@ -205,7 +205,8 @@ class DatabaseManager:
         """)
 
         cursor.execute("SELECT COUNT(*) FROM announcements")
-        if cursor.fetchone()[0] == 0:
+        row = cursor.fetchone()
+        if row and list(row.values())[0] == 0:
             default_text = (
                 "📌 **أهلاً بكم زملائنا طلبة المرحلة الثانية (قسم علم النفس)** 🧠✨\n\n"
                 "سوف يتم نشر أي تبليغات رسمية بخصوص المحاضرات، القاعات، أو الجداول الامتحانية هنا بتحديث مستمر.\n\n"
@@ -245,7 +246,8 @@ class DatabaseManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM users")
-        result = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        result = list(row.values())[0] if row else 0
         cursor.close()
         conn.close()
         return result
@@ -259,7 +261,8 @@ class DatabaseManager:
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (file_id, file_unique_id, file_name, file_type, subject, media_type, uploaded_by))
-        file_pk = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        file_pk = list(row.values())[0] if row else 0
         conn.commit()
         cursor.close()
         conn.close()
@@ -282,7 +285,8 @@ class DatabaseManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM files")
-        result = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        result = list(row.values())[0] if row else 0
         cursor.close()
         conn.close()
         return result
