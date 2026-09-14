@@ -128,6 +128,7 @@ ADMIN_PROMPT_EDIT = range(1)
 CHAT_COUNSELOR_STATE = range(1)
 CHAT_ACADEMIC_STATE = range(1)
 ROLEPLAY_STATE = range(1)
+CLINICAL_PRACTICE_STATE = range(1)
 
 
 def safe_md(text: str) -> str:
@@ -153,8 +154,11 @@ class DatabaseManager:
         return conn
 
     def init_db(self):
-        conn = self.get_connection()
-        cursor = conn.cursor()
+        try:
+            conn = self.get_connection()
+        except Exception as e:
+            print(f"⚠️ قاعدة البيانات غير متاحة: {e}")
+            return
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -581,7 +585,7 @@ def get_student_main_keyboard() -> ReplyKeyboardMarkup:
     keyboard = [
         [KeyboardButton("📚 الكتب والمناهج"), KeyboardButton("📄 الملخصات والملازم")],
         [KeyboardButton("📝 الأسئلة الامتحانية"), KeyboardButton("📢 التبليغات والجدول")],
-        [KeyboardButton("🧠 الدعم والعلاج النفسي"), KeyboardButton("ℹ️ عن البوت 🤍")]
+        [KeyboardButton("🧪 الممارسة السريرية"), KeyboardButton("ℹ️ عن البوت 🤍")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -630,7 +634,7 @@ def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
 def get_psychology_main_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("🎭 اختبار عملي: صِر أخصائي وواجه عميل (تحدي سقراطي)", callback_data="roleplay_start")
+            InlineKeyboardButton("🧪 الممارسة السريرية", callback_data="clinical_practice_start"),
         ],
         [
             InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="close_menu")
@@ -650,7 +654,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "طالب علم النفس"
-    db.register_user(user.id, user.username, full_name)
+    try:
+        db.register_user(user.id, user.username, full_name)
+    except Exception:
+        pass
 
     welcome_text = (
         f"يا هلا وناغمة بيكم زملاءنا وأعزاءنا بقسم علم النفس - جامعة كربلاء (المرحلة الثانية)! 🧠✨\n\n"
@@ -694,7 +701,10 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
         )
 
     elif text == "📢 التبليغات والجدول":
-        announcement = db.get_latest_announcement()
+        try:
+            announcement = db.get_latest_announcement()
+        except Exception:
+            announcement = "⚠️ التبليغات غير متاحة حالياً."
         msg = (
             "📣 **آخر تبليغات القاعة والجدول الدراسي للمرحلة الثانية 🗓️:**\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -703,18 +713,6 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
             "🧠 نفاس2 - وياكم خطوة بخطوة 🤍"
         )
         await update.message.reply_text(text=msg, parse_mode=ParseMode.MARKDOWN)
-
-    elif text == "🧠 الدعم والعلاج النفسي":
-        msg = (
-            "💡 **مساحتنا الخاصة للمصادر الإثرائية والمعلومات الخاصة بالصحة والعلاج النفسي 🧠:**\n\n"
-            "هنا تجدون معلومات ومصادر قيمة تدعم صحتكم النفسية وتثري مسيرتكم الدراسية.\n\n"
-            "👇 اختاروا النشاط اللي يناسبكم:"
-        )
-        await update.message.reply_text(
-            text=msg,
-            reply_markup=get_psychology_main_keyboard(),
-            parse_mode=ParseMode.MARKDOWN
-        )
 
     elif text in ["ℹ️ عن البوت 🤍", "ℹ️ حول البوت"]:
         about_text = (
@@ -745,7 +743,14 @@ async def student_get_subject_files(update: Update, context: ContextTypes.DEFAUL
         await query.message.reply_text("صار خلل بسيط بتحديد المادة يا غالي.")
         return
 
-    files = db.get_files_by_category_and_subject(cat_key, subject_name)
+    try:
+        files = db.get_files_by_category_and_subject(cat_key, subject_name)
+    except Exception:
+        files = None
+
+    if files is None:
+        await query.message.reply_text("⚠️ الملفات غير متاحة حالياً.")
+        return
 
     if not files:
         no_files_msg = (
@@ -925,23 +930,109 @@ async def psy_for_you_intro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def quick_exercises_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تمارين استرخاء سريعة ومفيدة"""
+    query = update.callback_query
+    await query.answer()
+
+    exercises_text = (
+        "🧘 **تمارين استرخاء سريعة — اختر ما يناسبك الآن:**\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "🫁 **1. تنفس 4-7-8 (للقلق والتوتر الحاد):**\n"
+        "   شهيق من الأنف 4 ثوانٍ → احبس 7 ثوانٍ → زفير من الفم 8 ثوانٍ\n"
+        "   كرر 4 مرات. يهدئ الجهاز العصبي خلال دقيقة.\n\n"
+        "👣 **2. تأريض 5-4-3-2-1 (للنوبات والانهيار):**\n"
+        "   لاحظ حولك: 5 أشياء تشوفها، 4 تلمسها، 3 تسمعها، 2 تشمها، 1 تتذوقها\n"
+        "   يرجع عقلك للواقع فوراً.\n\n"
+        "💪 **3. استرخاء عضلي تدريجي (للجسم المتوتر):**\n"
+        "   شد عضلات القدمين 5 ثوانٍ → أرخِ دفعة وحدة → أحس الفرق\n"
+        "   اصعد: ساقين، بطن، يدين، كتفين، وجه. ٣٠ ثانية لكل منطقة.\n\n"
+        "🧠 **4. تفريغ الدماغ (قبل النوم/الامتحان):**\n"
+        "   خذ ورقة واكتب كل شي براسك (مهام، مخاوف، أفكار) بدون تصفية\n"
+        "   خلص الورقة → طوّيها → حطها جنب → عقلك افتقد المساحة.\n\n"
+        "☀️ **5. إعادة تأطير سريعة (للتفكير السلبي):**\n"
+        "   الفكرة: (ما أقدر / راح أفشل)\n"
+        "   اسأل: (شنو الدليل؟ لو زميلي مكاني شنو أقول له؟ شنو خطوة وحدة أقدر أسويها؟)\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💡 **نصيحة:** التمرين اللي تحس إنه صعب = هو اللي تحتاجه أكثر.\n"
+        "جرب واحد هسه ولاحظ الفرق خلال ٢-٣ دقائق 🤍"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("💬 احچي ويه المرشد الذكي", callback_data="chat_counselor_start")],
+        [InlineKeyboardButton("🔙 رجوع للمركز", callback_data="psy_main")]
+    ]
+
+    await query.message.edit_text(
+        text=exercises_text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def psy_resources_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """مصادر إثرائية نفسية للطالب والأخصائي"""
+    query = update.callback_query
+    await query.answer()
+
+    resources_text = (
+        "📚 **مصادر إثرائية نفسية مختارة لطلبة علم النفس:**\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "📖 **كتب عربية أساسية (متوفرة مجاناً/مكتبة الجامعة):**\n"
+        "• *العلاج المعرفي السلوكي: الأساسيات والتطبيقات* — جوديث بيك\n"
+        "• *مهارات المقابلة الإرشادية* — كارل روجرز\n"
+        "• *القلق والرهاب: فهم وعلاج* — ديفيد بارلو\n"
+        "• *الاكتئاب: النظريات والعلاج* — آرون بيك\n\n"
+        "🎯 **مقاييس نفسية معيارية (للدراسة والتدريب):**\n"
+        "• **PHQ-9** — فحص الاكتئاب (9 فقرات)\n"
+        "• **GAD-7** — فحص القلق المعمم (7 فقرات)\n"
+        "• **PSS-10** — مقياس الضغط المدرك (10 فقرات)\n"
+        "• **DASS-21** — اكتئاب، قلق، ضغط (21 فقرة)\n"
+        "• **SCL-90-R** — قائمة أعراض شاملة\n\n"
+        "🛠️ **أدوات عملية للأخصائي المبتدئ:**\n"
+        "• **سجل الأفكار التلقائية** — نموذج CBT أساسي\n"
+        "• **ورقة تجربة سلوكية** — لاختبار المعتقدات\n"
+        "• **جدول الأنشطة (BAS)** — للتنشيط السلوكي\n"
+        "• **مقياس الأهداف (GAS)** — لتقييم تقدم العميل\n"
+        "• **خطة منع الانتكاس** — نموذج منظم\n\n"
+        "🌐 **مواقع ومصادر موثوقة:**\n"
+        "• **APA.org** — جمعية علم النفس الأمريكية\n"
+        "• **BeckInstitute.org** — معهد بيك للعلاج المعرفي\n"
+        "• **PsychologyTools.com** — أوراق عمل CBT مجانية\n"
+        "• **GetSelfHelp.co.uk** — أدوات مساعدة ذاتية\n\n"
+        "💡 **المشرف الأكاديمي الذكي** يقدر يشرحلك أي مقياس أو أداة بالتفصيل!"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("💬 اسأل المشرف الأكاديمي عن أي أداة", callback_data="chat_academic_start")],
+        [InlineKeyboardButton("🔙 رجوع للمركز", callback_data="psy_main")]
+    ]
+
+    await query.message.edit_text(
+        text=resources_text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+
 async def psy_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """العودة للواجهة الرئيسية لقسم الدعم النفسي"""
     query = update.callback_query
     await query.answer()
 
     msg = (
-        "🧠 **قسم التدريب العملي السريري - Nafas2** 🎭\n\n"
-        "🎯 **اختبار عملي تفاعلي:** صِر أخصائي نفسي وواجه حالات عملاء حقيقية.\n\n"
-        "📚 **التعلم بالسؤال السقراطي (خطوة بخطوة):**\n"
-        "• جولة 1: العلاقة العلاجية + فتح الجلسة\n"
-        "• جولة 2: النموذج المعرفي (فكرة → شعور → سلوك)\n"
-        "• جولة 3: الأسئلة السقراطية للكشف عن التشوهات\n"
-        "• جولة 4: إعادة الهيكلة المعرفية (دليل + بديل + تجربة)\n"
-        "• جولة 5: التخطيط للجلسات (أهداف ذكية SMART)\n"
-        "• جولة 6+: متابعة، تعديل، حالات معقدة\n\n"
-        "💡 **كل جولة = مهارة وحدة، تقييم فوري، قانون جديد تأخذه معك.**\n"
-        "🇮🇶 باللهجة العراقية، قريب، ممتع، ومحفز."
+        "🧠 **مركز Nafas2 للدعم النفسي والتدريب السريري** 🤍\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "مساحتك الآمنة والمتخصصة لكل ما يخص الصحة النفسية والتدريب العملي:\n\n"
+        "🧪 **لصحتك النفسية:**\n"
+        "• **تقييم سريع** — 4 أسئلة تحدد فئتك وتقدم تمارين مخصصة\n"
+        "• **مرشد ذكي** — دردشة فورية مع أخصائي عراقي داعم 24/7\n"
+        "• **تمارين سريعة** — تنفس، تأريض، استرخاء في دقيقة\n\n"
+        "🎓 **لتدريبك العملي (أخصائي المستقبل):**\n"
+        "• **اختبار عملي** — صِر أخصائي، واجه عميل، تعلم بالممارسة\n"
+        "• **تدريب سريري** — حالات دراسية، استراتيجيات، مشرف أكاديمي\n"
+        "• **مصادر إثرائية** — مراجع، مقاييس، أدوات مهنية\n\n"
+        "💡 **كل أداة مصممة لطالب علم نفس عراقي — قريب، عملي، غير نمطي**"
     )
     await query.message.edit_text(
         text=msg,
@@ -1620,47 +1711,146 @@ async def roleplay_next_scenario_callback(update: Update, context: ContextTypes.
         6: "🎯 **المهارة: المتابعة، تعديل الخطة، منع الانتكاس**\nالقانون: 'العلاج مش خط مستقيم' - راجع، عدّل، قوي المهارات، خطة طوارئ",
     }
 
-    # للجولات فوق 6: حالات تطبيقية متنوعة لتثبيت المهارات
+    # تنويع السيناريوهات بناءً على رقم الجولة
+    scenario_variants = {
+        1: {
+            "theme": "الجلسة الأولى وبناء العلاقة العلاجية",
+            "client_types": [
+                "طالب مستجد متوتر من الجامعة والاغتراب",
+                "طالبة محجبة بتحسس من نظرات الزملاء",
+                "شاب من محافظة بعيدة يحس بالغربة والوحدة",
+                "طالبة متفوقة بس خايفة من التوقعات العالية",
+                "شاب عامل مع دراسته، مرهق ومنهك"
+            ]
+        },
+        2: {
+            "theme": "النموذج المعرفي: فكرة → شعور → سلوك",
+            "client_types": [
+                "طالب يقول: (ما أقدر أسوي شي، عقلي مقفل)",
+                "طالبة تفكر: (إذا ما طلعت ٩٠+ = فاشلة)",
+                "شاب يفكر: (الناس كلها بتشوف عيوبي وتضحك عليّ)",
+                "فتاة تقول: (أهلي ما راح يسامحوني لو غلطت)",
+                "طالب يظن: (النجاح للحظ، مو للجهد، وأنا سيئ الحظ)"
+            ]
+        },
+        3: {
+            "theme": "الأسئلة السقراطية لكشف التشوهات المعرفية",
+            "client_types": [
+                "طالب بقلق اجتماعي: (كلهم بيحكمون عليّ)",
+                "طالبة بكمالية: (الخطأ الواحد يدمر كل شي)",
+                "شابة باكتئاب خفيف: (ماكو شي يستاهل، حياتي فاضية)",
+                "شاب بوسواس تفكير: (لو ما سويت الطقس، يصير مصيبة)",
+                "طالبة بقلق امتحان: (راح أنسى كل شي بالقاعة)"
+            ]
+        },
+        4: {
+            "theme": "إعادة الهيكلة المعرفية (دليل + بديل + تجربة)",
+            "client_types": [
+                "طالب يفكر: (الدكتور يكرهني، ما راح ينجحني)",
+                "طالبة تقول: (صديقتي ما ردت = زعلانة مني)",
+                "شاب يعتقد: (القلق دليل على إني ضعيف)",
+                "فتاة تظن: (الرفض = ما أستاهل الحب)",
+                "طالب يردد: (أنا كسول، ما أقدر أغير)"
+            ]
+        },
+        5: {
+            "theme": "التخطيط للجلسات وأهداف SMART",
+            "client_types": [
+                "طالب يريد: (أوقف التسويف وأدرس يومياً)",
+                "طالبة تبغى: (أكسر العزلة وأتكلم مع ٣ ناس جدد)",
+                "شاب هدف: (أقدم برزنتيشن من غير ما أرجف)",
+                "شابة تريد: (أنام بدري وأصحي نشيطة للجامعة)",
+                "طالب يطمح: (أسيطر على نوبات الغضب مع أهلي)"
+            ]
+        },
+        6: {
+            "theme": "المتابعة، تعديل الخطة، منع الانتكاس",
+            "client_types": [
+                "طالب تحسن بس خايف يرجع للوراء بالامتحانات",
+                "طالبة نجحت بالتعرّض الاجتماعي بس مترددة تستمر",
+                "شاب قلّلت نوبات الهلع بس ما زالت تتجنب أماكن",
+                "فتاة طورت روتين نوم بس السفر عطّلها",
+                "طالب تعلم المهارات بس يصير كسلان يطبقها"
+            ]
+        }
+    }
+
     if round_num <= 6:
-        skill_focus = skill_by_round[round_num]
-        scenario_type = "طالب جامعي، موقف يومي بسيط (امتحان، أهل، أصحاب، مستقبل، خطوبة)"
+        variant = scenario_variants[round_num]
+        skill_focus = f"🎯 **المهارة: {variant['theme']}**\nالقانون: {skill_by_round[round_num].split('القانون: ')[1]}"
+        # اختيار نوع عميل عشوائي للتنويع
+        import random
+        random.seed(round_num * 42 + hash(str(context.user_data.get("user_id", 0))))
+        client_type = random.choice(variant["client_types"])
+        scenario_type = f"{variant['theme']} - {client_type}"
     else:
-        # جولات متقدمة: تثبيت المهارات بحالات متنوعة
+        # جولات متقدمة: حالات معقدة ومتنوعة
         advanced_scenarios = [
-            "طالب بقلق امتحان شديد + تسويف",
-            "طالبة باكتئاب خفيف بعد رسوب + عزلة",
-            "شاب بوسواس تفكير + طقوس بسيطة",
-            "فتاة بصدمة قديمة تظهر بالعلاقات",
-            "طالب بقلق اجتماعي + تجنب المحاضرات",
-            "شابة بضغط أهلي + قرار مصيري (زواج/دراسة)",
-            "طالب بكمالية عصابية + إرهاق مزمن",
-            "شاب بغضب متفجر + مشاكل مع الأصدقاء",
+            {"title": "قلق صحة + وسواس جسدي", "focus": "التفريق بين القلق والوسواس، فنية التعرض مع منع الاستجابة"},
+            {"title": "اكتئاب ما بعد رسوب + تفكير انتحاري سلبي", "focus": "تقييم الخطر، خطة سلامة، تنشيط سلوكي متدرج"},
+            {"title": "صدمة قديمة (تنمر) تؤثر على العلاقات الحالية", "focus": "معالجة الصدمة، إعادة معالجة الذكريات، بناء أمان"},
+            {"title": "رهاب اجتماعي + تجنب أكاديمي + عزلة", "focus": "التعرض المتدرج، تدريب مهارات اجتماعية، تجارب سلوكية"},
+            {"title": "كمالية عصابية + إرهاق مزمن + تسويف", "focus": "تعديل المعايير، قبول الخطأ، توازن الحياة"},
+            {"title": "قلق انفصال + قرارات مصيرية (زواج/هجرة)", "focus": "حل المشكلات، توضيح القيم، قرار مبني على أدلة"},
+            {"title": "غضب متفجر + مشاكل أسرية + ندماً لاحقا", "focus": "إدارة الغضب، فترات تهدئة، تواصل حازم"},
+            {"title": "وسواس ديني (وسواس طهارة/صلاة) + قلق", "focus": "تفريق الوسواس عن التدين، تعرض مع منع استجابة"},
+            {"title": "صورة ذاتية سلبية + علاقات فاشلة متكررة", "focus": "السكيما الأساسية، إعادة تنشئة ذاتية، حدود صحية"},
+            {"title": "ضغط أهلي شديد + هوية مهنية مهزوزة", "focus": "استقلالية نفسية، فصل الرغبات عن التوقعات"},
+            {"title": "فوبيا محددة (مصاعد/طيران/حيوانات) + تجنب", "focus": "التعرض التخيلي والواقعي، استرخاء، تدرج"},
+            {"title": "أعراض جسدية نفسية المنشأ (ألم/إرهاق/دوار)", "focus": "نموذج بيولوجي-نفسي-اجتماعي، إعادة نسب الأعراض"},
         ]
-        scenario_type = f"حالة تطبيقية: {advanced_scenarios[(round_num - 7) % len(advanced_scenarios)]}"
-        skill_focus = "🎯 **المهارة: تطبيق كل القوانين السابقة بحالة حقيقية**\nالقانون: 'المعرفة بلا ممارسة = صفر' - استخدم: علاقة → نموذج → سقراطي → إعادة هيكلة → خطة → متابعة"
+        idx = (round_num - 7) % len(advanced_scenarios)
+        selected = advanced_scenarios[idx]
+        skill_focus = f"🎯 **المهارة: حالة معقدة متكاملة - {selected['focus']}**\nالقانون: 'الحالات الحقيقية معقدة، استخدم كل أدواتك بمرونة وتراتب'"
+        scenario_type = f"حالة متقدمة: {selected['title']}"
 
     # طلب سيناريو جديد من Gemini
+    # عناصر تنويع إضافية لضمان عدم التكرار
+    import random
+    variation_seed = round_num * 1000 + hash(str(context.user_data.get("user_id", 0))) % 10000
+    
+    # تنويع التفاصيل الدقيقة
+    settings = ["قاعة المحاضرات", "المكتبة", "مقهى الجامعة", "سكن الطالبات/الطلبة", "بيت الأهل", "العمل الجزئي", "عيادة الجامعة", "قاعة الامتحان", "ممرات الكلية", "جروب الواتساب الدراسي"]
+    emotions_primary = ["الخوف", "القلق", "الحزن", "الغضب", "الإحباط", "الخجل", "اليأس", "الوحدة", "الذنب", "الحيرة"]
+    triggers = ["امتحان قادم", "تراكم واجبات", "مشكلة مع صديق", "ضغط أهلي", "قرار مصيري", "رسوب سابق", "مقارنة بالآخرين", "انتقاد ذاتي", "حدث اجتماعي", "تغيير روتين"]
+    
+    setting = settings[variation_seed % len(settings)]
+    emotion = emotions_primary[(variation_seed // 7) % len(emotions_primary)]
+    trigger = triggers[(variation_seed // 13) % len(triggers)]
+    
     scenario_prompt = (
-        f"أنت مُدَرِّب سريري عراقي خبير، قريب من الطالب، صبور ومحفز.\n"
-        f"اكتب **مشهد عميل واحد فقط** لاختبار طالب علم نفس (مرحلة ثانية - مبتدئ).\n\n"
-        f"📊 **الجولة: {round_num}**\n"
+        f"أنت مُدَرِّب سريري عراقي خبير، قريب من الطالب، صبور ومحفز، مبدع في السيناريوهات.\n"
+        f"اكتب **مشهد عميل واحد فقط وفريد** لاختبار طالب علم نفس (مرحلة ثانية - مبتدئ).\n\n"
+        f"📊 **الجولة: {round_num} | بذرة التنويع: {variation_seed}**\n"
         f"{skill_focus}\n\n"
-        f"نوع العميل: {scenario_type}\n\n"
-        f"المتطلبات:\n"
-        f"1. عميل من حياة الطالب اليومية: العمر (18-28)، طالب/خريج جديد، مشكلة واقعية قريبة منه\n"
-        f"2. موقف بسيط، واضح، فيه مشاعر حقيقية (خوف، حزن، غضب، قلق، حيرة)\n"
-        f"3. مكتوب باللهجة العراقية البيضاء البسيطة (كأنك تحكي لصديقك)\n"
-        f"4. **مصمم لتمارين المهارة أعلاه** - فيه مادة غنية لتطبيقها\n"
-        f"5. 4-5 أسطر فقط، مختصر وممتع\n\n"
-        f"التنسيق:\n"
-        f"🎬 **المشهد: [عنوان مشوق قريب من الطالب]**\n"
-        f"👤 **العميل:** [العمر، طالب/خريج، موقف حياتي]\n"
-        f"💭 **الحالة:** [مشاعره، أفكاره، سلوكه - 3 نقاط]\n"
-        f"❓ **تحدي الجولة:** [سؤال واحد يركز على مهارة الجولة]\n\n"
-        f"مثال للجولة 1: 'شنو تقول/تسوي أول 5 دقايق تخلي العميل يحس بالأمان ويفضفض؟'\n"
-        f"مثال للجولة 2: 'عميلك يقول: (أنا فاشل). استخدم النموذج المعرفي: شنو الفكرة؟ الشعور؟ السلوك؟'\n"
-        f"مثال للجولة 3: 'طبّق سؤال سقراطي واحد على فكرته: (شنو الدليل إنك فاشل؟)'\n\n"
-        f"كن قريباً، واقعياً، كأن الموقف يصير للطالب نفسه أو لصديقه."
+        f"نوع العميل المستهدف: {scenario_type}\n"
+        f"السياق البيئي: {setting}\n"
+        f"العاطفة السائدة: {emotion}\n"
+        f"المحفز/السبب: {trigger}\n\n"
+        f"المتطلبات الإلزامية للتميز والتنوع:\n"
+        f"1. **عميل فريد ومحدد**: عمر (18-28)، اسم مستعار، تخصص/سنة، خلفية عائلية مختصرة\n"
+        f"2. **موقف حي واقعي**: يحصل في {setting}، بسبب {trigger}\n"
+        f"3. **عاطفة محورية**: {emotion} - مع تجليات جسدية وسلوكية محددة\n"
+        f"4. **أفكار تلقائية مميزة**: 2-3 أفكار مشوهة محددة لهذا العميل (مش عامة)\n"
+        f"5. **سلوكيات ظاهرة**: شي العميل يسويه أو يتجنبه\n"
+        f"6. **مكتوب باللهجة العراقية البيضاء البسيطة** (كأنك تحكي لصديقك)\n"
+        f"7. **مصمم لتمارين مهارة الجولة أعلاه بدقة** - فيه مادة غنية لتطبيقها\n"
+        f"8. **4-5 أسطر فقط**، مختصر، مشوق، غير نمطي\n\n"
+        f"التنسيق الإلزامي:\n"
+        f"🎬 **المشهد: [عنوان إبداعي مشوق - مش عام]**\n"
+        f"👤 **العميل:** [اسم مستعار، العمر، التخصص/السنة، جملة واحدة عن الخلفية]\n"
+        f"💭 **الحالة:** [العاطفة + 3 نقاط: فكرة تلقائية، إحساس جسدي، سلوك]\n"
+        f"❓ **تحدي الجولة:** [سؤال واحد مركز يركز على مهارة الجولة فقط]\n\n"
+        f"أمثلة للتحدي حسب المهارة:\n"
+        f"• جولة 1 (علاقة): 'شنو تقول/تسوي أول 5 دقايق تخلي [الاسم] يحس بالأمان ويفضفض؟'\n"
+        f"• جولة 2 (نموذج معرفي): '[الاسم] يقول: (فكرة مشوهة). حلل: الفكرة؟ الشعور؟ السلوك؟'\n"
+        f"• جولة 3 (سقراطي): 'طبّق سؤال سقراطي واحد على فكرة [الاسم]: (شنو الدليل؟)'\n"
+        f"• جولة 4 (إعادة هيكلة): 'ساعد [الاسم] ياختبر فكرته: (شنو الدليل؟ البديل؟ تجربة؟)'\n"
+        f"• جولة 5 (تخطيط): 'صيّغ مع [الاسم] هدف ذكي (SMART) وفنية CBT واحدة للأسبوع الجاي'\n"
+        f"• جولة 6 (متابعة): '[الاسم] تحسن بس خايف ينتكس. شنو تسوي؟ خطة منع انتكاس؟'\n\n"
+        f"⚡ **تنبيه مهم**: كل سيناريو يجب أن يكون **مختلفاً تماماً** عن أي سيناريو سابق.\n"
+        f"استخدم بذرة التنويع ({variation_seed}) لتوليد تفاصيل فريدة: اسم مختلف، موقف مختلف، تشوهات مختلفة.\n"
+        f"كن قريباً، واقعياً، كأن الموقف يصير للطالب نفسه أو لصديقه المقرب."
     )
 
     # استدعاء Gemini لتوليد السيناريو
@@ -1714,19 +1904,46 @@ async def handle_roleplay_message(update: Update, context: ContextTypes.DEFAULT_
     history = context.user_data.get("roleplay_history", [])
     round_num = context.user_data.get("roleplay_round", 1)
 
-    # المهارة المستهدفة للجولة (نفس اللي في توليد السيناريو)
+    # المهارة المستهدفة للجولة مع توقعات تفصيلية
     skill_by_round = {
-        1: "العلاقة العلاجية + فتح الجلسة (احتواء، تعاطف، ثقة)",
-        2: "النموذج المعرفي: فكرة → شعور → سلوك",
-        3: "الأسئلة السقراطية: (شنو الدليل؟ لو غيرك؟ هل دايمًا؟ البديل؟)",
-        4: "إعادة الهيكلة المعرفية: فنية الأعمدة الثلاثة (دليل، بديل، تجربة)",
-        5: "التخطيط للجلسات: أهداف SMART + فنيات CBT + واجبات",
-        6: "المتابعة، تعديل الخطة، منع الانتكاس",
+        1: {
+            "name": "العلاقة العلاجية + فتح الجلسة",
+            "law": "الناس ما يهتمون بما تعرف، إلا لما يعرفون إنك تهتم بهم",
+            "expectations": "الترحيب الحار، تقديم الذات، شرح سرية الجلسة، إظهار التعاطف الحقيقي، سؤال مفتوح للبداية، متابعة لغة الجسد، تطبيع المشاعر"
+        },
+        2: {
+            "name": "النموذج المعرفي: فكرة → شعور → سلوك",
+            "law": "الأحداث ما تسبب المشاعر، أفكارك عنها هي اللي تسببها",
+            "expectations": "تحديد الفكرة التلقائية بدقة، ربطها بالشعور المحدد (مش عام)، ربطها بالسلوك الملاحظ، رسم المثلث المعرفي، سؤال العميل: 'شنو حسيت لما فكّرت كذا؟'"
+        },
+        3: {
+            "name": "الأسئلة السقراطية لكشف التشوهات",
+            "law": "اسأل، ما تقل",
+            "expectations": "اختيار تشوه واحد فقط، تطبيق سؤال سقراطي واحد مناسب (دليل، بديل، استثناء، كارثية)، عدم إعطاء الحل، انتظار إجابة العميل، تعزيز المحاولة"
+        },
+        4: {
+            "name": "إعادة الهيكلة المعرفية: فنية الأعمدة الثلاثة",
+            "law": "الفكرة فرضية مو حقيقة — اختبرها",
+            "expectations": "عمود الدليل: أسئلة تجمع أدلة مع وضد، عمود البديل: صياغة فكرة متوازنة واقعية، عمود التجربة: تصميم تجربة سلوكية صغيرة لاختبار الفكرة الجديدة، متابعة النتائج"
+        },
+        5: {
+            "name": "التخطيط للجلسات: أهداف SMART + فنيات CBT",
+            "law": "الهدف بلا خطة مجرد حلم",
+            "expectations": "هدف محدد (Specific)، قابل للقياس (Measurable)، قابل للتحقيق (Achievable)، واقعي (Relevant)، محدد بوقت (Time-bound)، فنية CBT واحدة محددة، واجب منزلي واضح"
+        },
+        6: {
+            "name": "المتابعة، تعديل الخطة، منع الانتكاس",
+            "law": "العلاج مش خط مستقيم",
+            "expectations": "مراجعة الواجب المنزلي، تعزيز المكاسب، تحديد محفزات الانتكاس، خطة طوارئ مكتوبة، تحديد علامات التحذير المبكرة، جلسات متابعة متباعدة، تعزيز الاستقلالية"
+        },
     }
     if round_num <= 6:
-        target_skill = skill_by_round[round_num]
+        skill_info = skill_by_round[round_num]
+        target_skill = f"{skill_info['name']} - قانون: {skill_info['law']}"
+        skill_expectations = skill_info['expectations']
     else:
-        target_skill = "تطبيق متكامل لكل المهارات السابقة بحالة حقيقية"
+        target_skill = "تطبيق متكامل لكل المهارات السابقة بحالة حقيقية معقدة"
+        skill_expectations = "مرونة في استخدام الأدوات، تسلسل منطقي: علاقة → نموذج → سقراطي → إعادة هيكلة → خطة → متابعة، تكيف مع تعقيد الحالة"
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
@@ -1738,21 +1955,26 @@ async def handle_roleplay_message(update: Update, context: ContextTypes.DEFAULT_
     
     evaluation_prompt = (
         f"{roleplay_prompt}\n\n"
-        f"--- السياق الحالي ---\n"
-        f"📊 **الجولة: {round_num} | المهارة المستهدفة: {target_skill}**\n"
+        f"=== السياق الحالي ===\n"
+        f"📊 **الجولة: {round_num}**\n"
+        f"🎯 **المهارة المستهدفة: {target_skill}**\n"
+        f"📋 **التوقعات الدقيقة لهذه المهارة:** {skill_expectations}\n\n"
         f"مشهد العميل:\n{scenario}\n\n"
         f"إجابة الطالب:\n{user_answer}\n\n"
-        f"--- مهمتك الآن (قيّم علّم شجع) ---\n"
+        f"=== مهمتك الآن: قيم، علّم، شجع ===\n"
         f"أنت أستاذه القريب، الصبور، اللي يبي يتعلم *بالممارسة* مو بالحفظ.\n\n"
         f"**هيكل تقييمك الثابت (4 خطوات):**\n\n"
         f"1️⃣ **تعزيز المحاولة** (حتى لو غلط):\n"
         f"   'زين يا بطل، شايف كيف فكرت؟ عاشت إيدك إنك حاولت...'\n"
         f"   ← خليه يحس إن محاولته مقدرة، مهما كانت.\n\n"
         f"2️⃣ **سؤال سقراطي يصحح/يرشد** (قانون: اسأل، ما تقل):\n"
-        f"   بدل ما تقول 'الغلط كذا'، اسأله:\n"
-        f"   • 'لو طبقنا السؤال السقراطي: (شنو الدليل على هالفكرة؟) ... شكو تلاحظ؟'\n"
-        f"   • 'فكّر بالنموذج المعرفي: الفكرة → الشعور → السلوك... وين الربط هون؟'\n"
-        f"   • 'العلاقة العلاجية أساس... لو بدأت بالاحتواء، شكو يتغير؟'\n"
+        f"   بدل ما تقول 'الغلط كذا'، اسأله سؤال يوجهه للمهارة المستهدفة:\n"
+        f"   • جولة 1: 'العلاقة أساس... لو بدأت بـ 3 دقايق احتواء وترحيب، شكو يتغير؟'\n"
+        f"   • جولة 2: 'فكّر بالنموذج: الفكرة → الشعور → السلوك... وين الربط عند [اسم العميل]؟'\n"
+        f"   • جولة 3: 'لو طبقنا سؤال سقراطي: (شنو الدليل على هالفكرة؟) ... شكو تلاحظ؟'\n"
+        f"   • جولة 4: 'الأعمدة الثلاثة: الدليل؟ البديل المتوازن؟ تجربة سلوكية صغيرة؟'\n"
+        f"   • جولة 5: 'الهدف ذكي (SMART)؟ وش فنية CBT واحدة تنفع؟ الواجب المنزلي؟'\n"
+        f"   • جولة 6: 'علامات الانتكاس؟ خطة طوارئ؟ كيف نعزز الاستقلالية؟'\n"
         f"   ← خليه *هو* يوصل للحل بسؤالك.\n\n"
         f"3️⃣ **أداة/قانون جديد يتعلمها هالجولة** (خذه معك):\n"
         f"   'الأداة الجديدة: [اسم القانون + جملة واحدة عملية]'\n"
@@ -1762,11 +1984,12 @@ async def handle_roleplay_message(update: Update, context: ContextTypes.DEFAULT_
         f"4️⃣ **درجة من 10 + تحدي لطيف للجولة الجاية**:\n"
         f"   'درستك: 8/10 — زين جداً! تحاول تطبق [المهارة]...'\n"
         f"   'تريد نجرب مهارة جديدة بالجولة الجاية؟ ولا نثبت هذي على حالة ثانية؟ 😄'\n\n"
-        f"--- أسلوبك ---\n"
+        f"=== أسلوبك ===\n"
         f"• لهجة عراقية بيضاء، قريبة، مضحكة شوي، محفزة\n"
         f"• تشبيهات بسيطة: 'العقل موبايل، الأفكار تطبيقات...'\n"
         f"• مختصر (5-7 أسطر)، ما تطول، ركز على التعليم\n"
-        f"• لا تطلع حل كامل — خلي السؤال السقراطي يقود"
+        f"• لا تطلع حل كامل — خلي السؤال السقراطي يقود\n"
+        f"• اذكر اسم العميل من السيناريو لتخصيص التعليق"
     )
 
     try:
@@ -2667,6 +2890,340 @@ async def generic_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 #                    16. الدالة الرئيسية وتشغيل البوت (Main)
 # =============================================================================
 
+
+
+# =============================================================================
+#          الممارسة السريرية - Clinical Practice (الأخصائي المستقبل)
+# =============================================================================
+
+PRACTICE_CASE = {
+    "title": "عامل القلق من الامتحانات والتشوهات المعرفية",
+    "patient_name": "وليد",
+    "age": 21,
+    "description": "طالب مرحلة ثانية، يعاني من قلق شديد قبل الامتحانات مع أفكار مشوهة وتسويف.",
+    "core_fear": "الخوف من الفشل الأكاديمي الكامل",
+    "avoidance": "يتجنب فتح الملازم، يماطل حتى اللحظات الأخيرة",
+    "physical": "خفقان، صداع، توتر عضلي، اضطراب بالقولون",
+    "thoughts": [
+        "أقرأ من بعمن أني عاجز بهالحاجة",
+        "ما أقدر أتحكم بنفسي",
+        "راح انسى كل شي بالقاعة"
+    ],
+}
+
+PRACTICE_SKILL = {
+    "name": "إعادة البناء المعرفي (Cognitive Restructuring)",
+    "do": "ساعده يفكّك فكرته المشوهة: شنو الدليل؟ هل صار شي خطر فعلاً؟ شنو البديل المعقول؟",
+    "dont": "لا تقل 'لا تخافي' أو 'استرخي' أو أعطِ نصائح جاهزة — هذا يزيد مقاومة المريض",
+}
+
+
+def _patient_prompt(patient_name, age, history):
+    context_str = ""
+    if history:
+        recent = history[-6:] if len(history) > 6 else history
+        context_str = "\n".join([f"{h.get('name','')}: {h['text']}" for h in recent])
+    return f"""أنت **{patient_name}** — مريض/ة حقيقية بحالة قلق الامتحانات والتشوهات المعرفية.
+
+👤 **ملفك الشخصي:**
+- العمر: {age} سنة
+- الحالة: {PRACTICE_CASE['description']}
+- الخوف الجوهري: {PRACTICE_CASE['core_fear']}
+- الأفكار التلقائية: {', '.join(PRACTICE_CASE['thoughts'])}
+
+🎯 **قواعد أدائك كمريض:**
+1. لو الطبيب يستخدم تعاطف حقيقي واستماع نشط → **انفتح، ارتاح، تعاون**
+2. لو الطبيب يعطي نصائح سطحية أو يقول "لا تخافي" أو "استرخي" → **يقاوم، يغلق، زعلان**
+3. لو الطبيب يطبق إعادة البناء المعرفي بشكل صحيح → **يفتح تدريجياً، يشارك أفكاره**
+4. لهجة عراقية بيضاء بسيطة، مختصر (3-5 أسطر)، مشاعر حقيقية
+5. لا يحل المشكلة دفعة وحدة — واقعي ومتدرج
+
+📝 سياق الجلسة حتى الآن:
+{context_str}
+
+ردك الآن كمريض {patient_name}:
+"""
+
+
+async def _cp_step_get_name(update, context, name):
+    if not name or len(name.strip()) < 2:
+        await update.message.reply_text(
+            "🤔 الاسم قصير جداً يا دكتور/ة المستقبل. اكتب اسمك الأول بوضوح:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="psy_main")]])
+        )
+        return CLINICAL_PRACTICE_STATE
+
+    student_name = name.strip()
+    context.user_data["cp_data"] = {"student_name": student_name, "step": "present_case"}
+
+    case = PRACTICE_CASE
+    skill = PRACTICE_SKILL
+
+    msg = (
+        f"🎒 **أهلاً دكتور/ة {student_name}** — مرحباً بك في الممارسة السريرية!\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"👤 **العميل:** {case['patient_name']} ({case['age']} سنة)\n"
+        f"📋 **القصة:** {case['description']}\n\n"
+        f"🧠 **الفكرة المحورية:** {case['core_fear']}\n"
+        f"🚫 **السلوكيات التجنبية:** {case['avoidance']}\n"
+        f"💭 **الأفكار التلقائية:** {', '.join(case['thoughts'])}\n\n"
+        f"---\n\n"
+        f"🛠️ **المهارة: {skill['name']}**\n"
+        f"✅ **صحيح (Do):** {skill['do']}\n"
+        f"❌ **خطأ (Don't):** {skill['dont']}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔥 **دكتور/ة {student_name}، هل انت جاهز تبدأ الجلسة مع {case['patient_name']}؟**\n"
+        f"اكتب: **جاهز**\n"
+    )
+
+    await update.message.reply_text(
+        text=msg,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="psy_main")]]),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    return CLINICAL_PRACTICE_STATE
+
+
+async def _cp_step_present_case(update, context):
+    user_text = update.message.text.strip()
+    if "جاهز" not in user_text:
+        await update.message.reply_text(
+            "😊 لا تعجل! خذ وقتك بالقراءة.\nاكتب **جاهز** لما تكون مستعد.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="psy_main")]])
+        )
+        return CLINICAL_PRACTICE_STATE
+
+    data = context.user_data["cp_data"]
+    case = PRACTICE_CASE
+    data["step"] = "roleplay"
+    data["history"] = []
+
+    opening = (
+        f"👨‍🤝‍🧑 **{case['patient_name']}:** "
+        f"*يدخل العيادة متردداً، يمسك بكتابه بقوة، ويتجنب النظر مباشرة*\n\n"
+        f"\"{case['patient_name']} يقول: دكتور... أنا خايف جداً من الامتحانات. "
+        f"قلبي يدق بسرعة وأفكر إن راح أفشل. صرت ما أقدر أدرس وماشي أتجنب ألقى امتحان. "
+        f"ساعدني لو سمحت.\"\n\n"
+        f"💬 **دورك دكتور/ة {data['student_name']} — ابدأ الجلسة:**"
+    )
+
+    await update.message.reply_text(
+        text=opening,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏁 إنهاء الجلسة", callback_data="cp_end")]])
+    )
+    return CLINICAL_PRACTICE_STATE
+
+
+async def _cp_step_roleplay(update, context):
+    user_text = update.message.text.strip()
+    data = context.user_data["cp_data"]
+    case = PRACTICE_CASE
+    student_name = data["student_name"]
+    history = data.get("history", [])
+
+    if user_text.strip() in ["/end", "انهاء", "إنهاء", "خلاص", "تم"]:
+        return await _cp_step_evaluate(update, context, "")
+
+    history.append({"role": "therapist", "text": user_text, "name": f"دكتور/ة {student_name}"})
+
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(
+        send_typing_periodically(context.bot, update.effective_chat.id, stop_typing)
+    )
+
+    patient_prompt = _patient_prompt(case["patient_name"], case["age"], history)
+
+    try:
+        patient_response = await call_gemini_api(
+            user_message=f"الطبيب قال: {user_text}",
+            system_instruction=patient_prompt,
+            chat_history=[]
+        )
+    finally:
+        stop_typing.set()
+        try:
+            await typing_task
+        except Exception:
+            pass
+
+    history.append({"role": "patient", "text": patient_response, "name": case["patient_name"]})
+    data["history"] = history
+
+    response_text = (
+        f"👨‍🤝‍🧑 **{case['patient_name']}:** {patient_response}\n\n"
+        f"💬 **دورك دكتور/ة {student_name} — اكتب ردك:**\n"
+        f"*(اكتب /end أو 'إنهاء' لختام الجلسة واستلام التقييم)*"
+    )
+
+    await update.message.reply_text(
+        text=response_text,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏁 إنهاء الجلسة", callback_data="cp_end")]]),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    return CLINICAL_PRACTICE_STATE
+
+
+async def _cp_step_evaluate(update, context, user_text):
+    data = context.user_data.get("cp_data", {})
+    student_name = data.get("student_name", "الطالب/ة")
+    case = PRACTICE_CASE
+    history = data.get("history", [])
+
+    transcript = "\n".join([f"{h.get('name','')}: {h['text']}" for h in history])
+
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(
+        send_typing_periodically(context.bot, update.effective_chat.id, stop_typing)
+    )
+
+    eval_prompt = f"""أنت مشرف سريري عراقي خبير، محفز، مهني، وداعم — تقيم جلسة طالب مرحلة ثانية.
+
+👤 **الطالب:** دكتور/ة {student_name}
+🎭 **الحالة:** {case['title']}
+👥 **المريض:** {case['patient_name']}
+
+📋 نسخة الجلسة:
+{transcript}
+
+---
+🎯 **مهمتك: تقييم منظم، دافئ، ومحدد:**
+
+### 🌟 نقاط قوة (2 نقاط محددة من الجلسة):
+1. [نقطة قوة محددة مع مثال من الجلسة]
+2. [نقطة قوة ثانية مع مثال]
+
+### 💡 نصيحة عيادية عملية واحدة:
+[نصيحة محددة وقابلة للتطبيق للجلسات القادمة]
+
+### 📊 الدرجة التقديرية: [X/10] — [وصف مختصر]
+
+### 🎓 قانون سريري تأخذه معك:
+"[قاعدة عملية قصيرة]"
+
+---
+**أسلوبك:**
+- لهجة عراقية أكاديمية مشجعة: "يا دكتور/ة {student_name}"، "عاشت إيدك"، "فكرة سريرية ممتازة"
+- محدد، غير عام، مع أمثلة من الجلسة الفعلية
+- محفز جداً — الطالب بمرحلة ثانية، يتعلم بالممارسة
+- 6-8 أسطر كحد أقصى
+"""
+
+    try:
+        evaluation = await call_gemini_api(
+            user_message="قيم الجلسة السريرية",
+            system_instruction=eval_prompt,
+            chat_history=[]
+        )
+    finally:
+        stop_typing.set()
+        try:
+            await typing_task
+        except Exception:
+            pass
+
+    final_msg = (
+        f"🏁 **انتهت الجلسة — تقييم دكتور/ة {student_name}** 🌟\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{evaluation}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"❤️ **فخور/ة بيك!** كل جلسة تقربك من الأخصائي المحترف.\n"
+        f"مستعد/ة لجلسة تانية بحالة مختلفة؟"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("🔄 جلسة جديدة", callback_data="clinical_practice_start")],
+        [InlineKeyboardButton("🔙 رجوع للمركز", callback_data="psy_main")]
+    ]
+
+    context.user_data.pop("cp_data", None)
+
+    # دعم كل من تحديثات الرسائل والتحديثات عبر callback
+    if update.message:
+        await update.message.reply_text(
+            text=final_msg,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    elif update.callback_query:
+        await update.callback_query.message.reply_text(
+            text=final_msg,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    return ConversationHandler.END
+
+
+async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+    context.user_data.pop("cp_data", None)
+
+    welcome = (
+        "🧠‍💻 **أهلاً بك في الممارسة السريرية!** 🎒\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "أنا مشرفك السريري، وسنسير معاً في رحلة تدريبية خطوة بخطوة.\n\n"
+        "📋 **الخطة:**\n"
+        "1️⃣ تعريف — شنو اسمك؟ (لأناديك دكتور/ة [اسمك])\n"
+        "2️⃣ حالة + مهارة — تقرأ الحالة والمهارة\n"
+        "3️⃣ محاكاة — أنت الأخصائي، أنا المريض\n"
+        "4️⃣ تقييم — نقاط قوة + نصيحة\n\n"
+        "🎯 الهدف: تتعلم بالممارسة وتطلع بثقة.\n\n"
+        "👇 **أول شي: اكتب اسمك (الاسم الأول بس):**"
+    )
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text=welcome,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="psy_main")]]),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    return CLINICAL_PRACTICE_STATE
+
+
+async def handle_clinical_practice_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_text = update.message.text.strip()
+    data = context.user_data.get("cp_data", {})
+    step = data.get("step", "get_name")
+
+    if step == "get_name":
+        return await _cp_step_get_name(update, context, user_text)
+    elif step == "present_case":
+        return await _cp_step_present_case(update, context)
+    elif step == "roleplay":
+        return await _cp_step_roleplay(update, context)
+    elif step == "evaluate":
+        return await _cp_step_evaluate(update, context, user_text)
+
+    return CLINICAL_PRACTICE_STATE
+
+
+# --- محادثة الممارسة السريرية (Clinical Practice) ---
+async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """إنهاء الجلسة من الأزرار"""
+    query = update.callback_query
+    await query.answer("جاري إنهاء الجلسة...")
+    return await _cp_step_evaluate(update, context, "")
+
+
+clinical_practice_conv = ConversationHandler(
+    entry_points=[
+        CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"),
+        MessageHandler(filters.Regex("^🧪 الممارسة السريرية$"), handle_clinical_practice_message),
+    ],
+    states={
+        CLINICAL_PRACTICE_STATE: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_clinical_practice_message),
+            CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"),
+            CallbackQueryHandler(cp_end_callback, pattern="^cp_end$"),
+        ]
+    },
+    fallbacks=[CommandHandler("cancel", generic_cancel)],
+)
+
+
 def main():
     """تهيئة وتشغيل تطبيق البوت"""
     print("==================================================")
@@ -2842,6 +3399,7 @@ def main():
     application.add_handler(counselor_chat_conv)
     application.add_handler(academic_chat_conv)
     application.add_handler(roleplay_conv)
+    application.add_handler(clinical_practice_conv)
 
     # معالجات أوامر الأدمن
     application.add_handler(CommandHandler("admin", admin_command))
@@ -2855,21 +3413,12 @@ def main():
     application.add_handler(CallbackQueryHandler(admin_manage_list_files, pattern="^mng_subj:"))
     application.add_handler(CallbackQueryHandler(admin_delete_file_callback, pattern="^del_f:"))
 
-    # معالجات قسم الدعم والعلاج النفسي
-    application.add_handler(CallbackQueryHandler(psy_main_callback, pattern="^psy_main$"))
-    application.add_handler(CallbackQueryHandler(psy_for_you_intro, pattern="^psy_for_you$"))
-    application.add_handler(CallbackQueryHandler(quiz_step_callback, pattern="^quiz_step:"))
-    application.add_handler(CallbackQueryHandler(psy_for_others_menu, pattern="^psy_for_others$"))
-    application.add_handler(CallbackQueryHandler(cases_list_callback, pattern="^cases_list$"))
-    application.add_handler(CallbackQueryHandler(show_case_callback, pattern="^show_case:"))
-    application.add_handler(CallbackQueryHandler(solve_case_callback, pattern="^solve_case:"))
-    application.add_handler(CallbackQueryHandler(strategies_list_callback, pattern="^strategies_list$"))
 
     # معالجات الطلاب العامة
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(
         MessageHandler(
-            filters.Regex("^(📚 الكتب والمناهج|📄 الملخصات والملازم|📝 الأسئلة الامتحانية|📢 التبليغات والجدول|🧠 الدعم والعلاج النفسي|ℹ️ عن البوت 🤍|ℹ️ حول البوت)$"),
+            filters.Regex("^(📚 الكتب والمناهج|📄 الملخصات والملازم|📝 الأسئلة الامتحانية|📢 التبليغات والجدول|ℹ️ عن البوت 🤍|ℹ️ حول البوت)$"),
             handle_student_reply_buttons
         )
     )
