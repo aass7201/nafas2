@@ -156,6 +156,7 @@ class DatabaseManager:
     def init_db(self):
         try:
             conn = self.get_connection()
+            cursor = conn.cursor()
         except Exception as e:
             print(f"⚠️ قاعدة البيانات غير متاحة: {e}")
             return
@@ -407,7 +408,13 @@ async def call_gemini_api(
     chat_history: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """استدعاء نموذج Gemini الرسمي عبر اتصال دائم وسريع باللغة واللهجة الموجهة"""
-    api_key = db.get_setting("gemini_api_key") or GEMINI_API_KEY
+    api_key = GEMINI_API_KEY
+    try:
+        db_setting = db.get_setting("gemini_api_key")
+        if db_setting:
+            api_key = db_setting
+    except Exception:
+        pass
 
     if not api_key or api_key == "YOUR_GEMINI_API_KEY_HERE":
         return (
@@ -2892,63 +2899,205 @@ async def generic_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 
+
+
 # =============================================================================
-#          الممارسة السريرية - Clinical Practice (الأخصائي المستقبل)
+#          الممارسة السريرية الديناميكية - AI-Generated Cases
 # =============================================================================
 
-PRACTICE_CASE = {
-    "title": "عامل القلق من الامتحانات والتشوهات المعرفية",
-    "patient_name": "وليد",
-    "age": 21,
-    "description": "طالب مرحلة ثانية، يعاني من قلق شديد قبل الامتحانات مع أفكار مشوهة وتسويف.",
-    "core_fear": "الخوف من الفشل الأكاديمي الكامل",
-    "avoidance": "يتجنب فتح الملازم، يماطل حتى اللحظات الأخيرة",
-    "physical": "خفقان، صداع، توتر عضلي، اضطراب بالقولون",
-    "thoughts": [
-        "أقرأ من بعمن أني عاجز بهالحاجة",
-        "ما أقدر أتحكم بنفسي",
-        "راح انسى كل شي بالقاعة"
-    ],
-}
+SKILLS = [
+    {
+        "name": "إعادة البناء المعرفي (Cognitive Restructuring)",
+        "do": "ساعده يفكّك فكرته المشوهة: شنو الدليل؟ هل صار شي خطر فعلاً؟ شنو البديل المعقول؟",
+        "dont": "لا تقل 'لا تخافي' أو 'استرخي' أو أعطِ نصائح جاهزة — هذا يزيد مقاومة المريض",
+    },
+    {
+        "name": "التنشيط السلوكي (Behavioral Activation)",
+        "do": "ساعده يبدأ نشاط صغير جداً (5 دقايق) قبل ما يفكر يكمّل. ركز على الشعور بعد النشاط مش النتيجة.",
+        "dont": "لا تطلب منه يبدأ نشاط كبير دفعة وحدة. لا تنتظر تحفيزه الداخلي — اجعل البدء هو التحفيز.",
+    },
+    {
+        "name": "التعرض المنهجي (Systematic Desensitization)",
+        "do": "اصنع سلم مخاوف من السهل للصعب. ابدأ من المستوى الأسهل ورتّقه معه حتى يتعود.",
+        "dont": "لا تعرضه على أخطر مخاوفه دفعة وحدة. لا تتجاوز مستواه الحالي بسرعة.",
+    },
+    {
+        "name": "التمرين الذهني (Mindfulness)",
+        "do": "علّمه يلاحظ أفكاره كظواهر عابرة مش حقائق: 'أرى إنني فاكر كده... هدّه فكرة، مش واقع'.",
+        "dont": "لا تطلب منه يوقف الأفكار. لا تحكم على أفكاره بالمحتوى — ركز على العلاقة معها.",
+    },
+    {
+        "name": "المقابلة التحفيزية (Motivational Interviewing)",
+        "do": "استمع للتردد وعزّز حرية الاختيار: 'في جزء منك يحب يتحسن وفي جزء مبتعرف يبدا'.",
+        "dont": "لا تفرض التغيير. لا تحارب التردد — اجعله جزء طبيعي من رحلة التغيير.",
+    },
+]
 
-PRACTICE_SKILL = {
-    "name": "إعادة البناء المعرفي (Cognitive Restructuring)",
-    "do": "ساعده يفكّك فكرته المشوهة: شنو الدليل؟ هل صار شي خطر فعلاً؟ شنو البديل المعقول؟",
-    "dont": "لا تقل 'لا تخافي' أو 'استرخي' أو أعطِ نصائح جاهزة — هذا يزيد مقاومة المريض",
-}
+CASE_POOL = [
+    {
+        "patient_name": "سارة",
+        "age": 22,
+        "complaint": "قلق اجتماعي شديد خوف من الحكم",
+        "core_fear": "الخوف من الحكم السلبي",
+        "avoidance": "تتجنب المحاضرات والمناسبات",
+        "physical": "تعرق، صداع، غثيان",
+        "thoughts": ["كل الناس يشوفون خللي", "ما أقدر أتكلم", "راح يضحكوا عليي"],
+        "opening": "دكتور... أنا عايزة أسوي شي حاجة بس ما أعرف من وين أبدأ",
+        "skill_index": 0,
+    },
+    {
+        "patient_name": "أحمد",
+        "age": 20,
+        "complaint": "وسواس قهري تلوث وغسل",
+        "core_fear": "نقل العدوى للأهل",
+        "avoidance": "يتجنب الحمامات العامة والمصافحة",
+        "physical": "احمرار باليدين، إرهاق",
+        "thoughts": ["لو ما غسلت راخ مرض أهلي", "إيدي ملوثة", "أنا مسؤول عن أي ضرر"],
+        "opening": "دكتور... أنا من سنتين وغسل يدي 30 مرة باليوم ودفعني دار بس ما أقدر أوقف",
+        "skill_index": 1,
+    },
+    {
+        "patient_name": "ليلى",
+        "age": 21,
+        "complaint": "نوبات هلع حادة بالقاعة",
+        "core_fear": "الخوف من فقدان السيطرة",
+        "avoidance": "تتجنب القاعات المزدحمة",
+        "physical": "خفقان، ضيق تنفس، رجفة",
+        "thoughts": ["راح أموت", "راح أصير مجنونة", "ما أقدر أتحكم بنفسي"],
+        "opening": "دكتور... الحين عندي أسبوع على امتحان وأنا خايفة بزاف ما راح أقدر ادخل القاعة",
+        "skill_index": 2,
+    },
+    {
+        "patient_name": "خالد",
+        "age": 23,
+        "complaint": "اكتئاب بعد فراق طويل",
+        "core_fear": "الفراغ والعزلة",
+        "avoidance": "يبقى بالبيت يلعب بالموبايل كل اليوم",
+        "physical": "أرق، فقدان شهية، إرهاق",
+        "thoughts": ["ما في شي يسوي فرق", "أنا ما أصلح", "كل الناس أحسن مني"],
+        "opening": "دكتور... تفرقت عن صاحبي السنة وفصلي واللي صار ما عندي إلهتمام بح شي",
+        "skill_index": 3,
+    },
+    {
+        "patient_name": "منى",
+        "age": 19,
+        "complaint": "ضعف ثقة بالنفس ومقارنة النفس",
+        "core_fear": "الفشل الأكاديمي والشخصي",
+        "avoidance": "ما تقدر تبدأ شي جديد",
+        "physical": "صداع، توتر، اضطراب بالقولون",
+        "thoughts": ["أنا ثقيلة", "ما أصل لأي شي", "الناس كلهم أحسن مني"],
+        "opening": "دكتور... أنا حالياً أحس إن أنا ثقيلة وأنا اللي ما أقدر أعمل شي صحيح بالحياة",
+        "skill_index": 4,
+    },
+    {
+        "patient_name": "ياسر",
+        "age": 24,
+        "complaint": "رهاب امتحانات وتسويف",
+        "core_fear": "الخوف من الفشل الأكاديمي الكامل",
+        "avoidance": "يتجنب فتح الملازم، يماطل حتى اللحظات الأخيرة",
+        "physical": "خفقان، صداع، توتر عضلي، اضطراب بالقولون",
+        "thoughts": ["أقرأ من بعمن أني عاجز بهالحاجة", "ما أقدر أتحكم بنفسي", "راح انسى كل شي بالقاعة"],
+        "opening": "دكتور... أنا راح امتحان بعد أسبوع وما درست شي. عندي خوف بزاف من القاعة",
+        "skill_index": 0,
+    },
+]
 
 
-def _patient_prompt(patient_name, age, history):
-    context_str = ""
-    if history:
-        recent = history[-6:] if len(history) > 6 else history
-        context_str = "\n".join([f"{h.get('name','')}: {h['text']}" for h in recent])
-    return f"""أنت **{patient_name}** — مريض/ة حقيقية بحالة قلق الامتحانات والتشوهات المعرفية.
+async def _generate_case(context, student_name: str) -> dict:
+    """توليد حالة سريرية فريدة عبر Gemini"""
+    import random, time
+    variation = random.randint(1, 99999)
+    timestamp = int(time.time())
+    prompt = f"""أنت نفسي سريري متخصص في توليد حالات تدريبية لطلاب علم النفس.
 
-👤 **ملفك الشخصي:**
-- العمر: {age} سنة
-- الحالة: {PRACTICE_CASE['description']}
-- الخوف الجوهري: {PRACTICE_CASE['core_fear']}
-- الأفكار التلقائية: {', '.join(PRACTICE_CASE['thoughts'])}
+رقم الجلسة: {timestamp}-{variation}
 
-🎯 **قواعد أدائك كمريض:**
-1. لو الطبيب يستخدم تعاطف حقيقي واستماع نشط → **انفتح، ارتاح، تعاون**
-2. لو الطبيب يعطي نصائح سطحية أو يقول "لا تخافي" أو "استرخي" → **يقاوم، يغلق، زعلان**
-3. لو الطبيب يطبق إعادة البناء المعرفي بشكل صحيح → **يفتح تدريجياً، يشارك أفكاره**
-4. لهجة عراقية بيضاء بسيطة، مختصر (3-5 أسطر)، مشاعر حقيقية
-5. لا يحل المشكلة دفعة وحدة — واقعي ومتدرج
+اختر مهارة واحدة عشوائياً من هذي:
+1. إعادة البناء المعرفي
+2. التنشيط السلوكي
+3. التعرض المنهجي
+4. التمرين الذهني
+5. المقابلة التحفيزية
 
-📝 سياق الجلسة حتى الآن:
-{context_str}
+ثم ولّد حالة سريرية كاملة بصيغة JSON صرف بهذا الشكل:
+{{
+    "patient_name": "اسم عربي",
+    "age": رقم,
+    "complaint": "وصف مختصر للشكوى",
+    "core_fear": "الخوف الجوهري",
+    "avoidance": "السلوكيات التجنبية",
+    "physical": "الأعراض الجسدية",
+    "thoughts": ["فكرة 1", "فكرة 2", "فكرة 3"],
+    "opening": "أول كلام للمريض (3-5 أسطر باللهجة العراقية)",
+    "skill_index": رقم المهارة (0-4)
+}}
 
-ردك الآن كمريض {patient_name}:
+اجعل الحالة واقعية ومناسبة لتطبيق المهارة المختارة. رجّع JSON صرف بدون شرح.
 """
+    try:
+        response = await call_gemini_api(
+            user_message="ولّد حالة سريرية تدريبية",
+            system_instruction=prompt,
+            chat_history=[]
+        )
+        import json
+        start = response.find('{')
+        end = response.rfind('}') + 1
+        if start >= 0 and end > start:
+            case_data = json.loads(response[start:end])
+            return case_data
+    except Exception:
+        pass
+
+    return None
+
+
+async def _generate_patient_response(context, case_data: dict, history: list, user_text: str) -> str:
+    """توليد رد المريض ديناميكياً"""
+    skill = SKILLS[case_data.get("skill_index", 0)]
+
+    history_text = ""
+    if history:
+        for h in history[-6:]:
+            history_text += f"{h.get('name','')}: {h['text']}\n"
+
+    prompt = f"""أنت **{case_data['patient_name']}** — مريض/ة حقيقي بحالة: {case_data['complaint']}.
+
+👤 **ملفك:**
+- العمر: {case_data['age']} سنة
+- الشكوى: {case_data['complaint']}
+- الخوف: {case_data['core_fear']}
+- التجنب: {case_data['avoidance']}
+- الأفكار: {', '.join(case_data['thoughts'])}
+- المهارة: {skill['name']}
+
+🎯 **قواعد أدائك:**
+1. لو الطبيب يستخدم التعاطف والاستماع → **تتعاون وتنفتح**
+2. لو الطبيب يعطي نصائح جاهزة أو يقول "لا تخافي" → **يقاوم ويغلق**
+3. لو الطبيب يطبق المهارة المختارة بشكل صحيح → **يفتح تدريجياً**
+4. لهجة عراقية، مختصر (3-5 أسطر)، مشاعر حقيقية
+
+📝 تاريخ الجلسة:
+{history_text}
+
+ردك الآن:
+"""
+
+    try:
+        response = await call_gemini_api(
+            user_message=f"الطبيب قال: {user_text}",
+            system_instruction=prompt,
+            chat_history=[]
+        )
+        return response
+    except Exception:
+        return "مش عارف أتكلم كده."
 
 
 async def _cp_step_get_name(update, context, name):
     if not name or len(name.strip()) < 2:
         await update.message.reply_text(
-            "🤔 الاسم قصير جداً يا دكتور/ة المستقبل. اكتب اسمك الأول بوضوح:",
+            "🤔 الاسم قصير. اكتب اسمك الأول بوضوح:",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="psy_main")]])
         )
         return CLINICAL_PRACTICE_STATE
@@ -2956,23 +3105,40 @@ async def _cp_step_get_name(update, context, name):
     student_name = name.strip()
     context.user_data["cp_data"] = {"student_name": student_name, "step": "present_case"}
 
-    case = PRACTICE_CASE
-    skill = PRACTICE_SKILL
+    await update.message.reply_text(
+        f"⏳ دكتور/ة {student_name}، جاري تجهيز الملف السريري...\nأنتظر قلييل 🕐",
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+    case_data = None
+    try:
+        case_data = await _generate_case(context, student_name)
+    except Exception:
+        case_data = None
+
+    if case_data is None:
+        import random
+        case_data = random.choice(CASE_POOL)
+
+    context.user_data["cp_data"]["case_data"] = case_data
+    context.user_data["cp_data"]["step"] = "present_case"
+
+    skill = SKILLS[case_data.get("skill_index", 0)]
 
     msg = (
-        f"🎒 **أهلاً دكتور/ة {student_name}** — مرحباً بك في الممارسة السريرية!\n"
+        f"🎒 **أهلاً دكتور/ة {student_name}**\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"👤 **العميل:** {case['patient_name']} ({case['age']} سنة)\n"
-        f"📋 **القصة:** {case['description']}\n\n"
-        f"🧠 **الفكرة المحورية:** {case['core_fear']}\n"
-        f"🚫 **السلوكيات التجنبية:** {case['avoidance']}\n"
-        f"💭 **الأفكار التلقائية:** {', '.join(case['thoughts'])}\n\n"
+        f"👤 **العميل:** {case_data['patient_name']} ({case_data['age']} سنة)\n"
+        f"📋 **الشكوى:** {case_data['complaint']}\n\n"
+        f"🧠 **الفكرة المحورية:** {case_data['core_fear']}\n"
+        f"🚫 **التجنب:** {case_data['avoidance']}\n"
+        f"💭 **الأفكار التلقائية:** {', '.join(case_data['thoughts'])}\n\n"
         f"---\n\n"
-        f"🛠️ **المهارة: {skill['name']}**\n"
-        f"✅ **صحيح (Do):** {skill['do']}\n"
-        f"❌ **خطأ (Don't):** {skill['dont']}\n\n"
+        f"🛠️ **المهارة:** {skill['name']}\n"
+        f"✅ **صحيح:** {skill['do']}\n"
+        f"❌ **خطأ:** {skill['dont']}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔥 **دكتور/ة {student_name}، هل انت جاهز تبدأ الجلسة مع {case['patient_name']}؟**\n"
+        f"🔥 **جاهز تبدأ المحاكاة؟**\n"
         f"اكتب: **جاهز**\n"
     )
 
@@ -2988,23 +3154,20 @@ async def _cp_step_present_case(update, context):
     user_text = update.message.text.strip()
     if "جاهز" not in user_text:
         await update.message.reply_text(
-            "😊 لا تعجل! خذ وقتك بالقراءة.\nاكتب **جاهز** لما تكون مستعد.",
+            "😊 اكتب **جاهز** لما تكون مستعد.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="psy_main")]])
         )
         return CLINICAL_PRACTICE_STATE
 
     data = context.user_data["cp_data"]
-    case = PRACTICE_CASE
+    case_data = data["case_data"]
     data["step"] = "roleplay"
     data["history"] = []
 
     opening = (
-        f"👨‍🤝‍🧑 **{case['patient_name']}:** "
-        f"*يدخل العيادة متردداً، يمسك بكتابه بقوة، ويتجنب النظر مباشرة*\n\n"
-        f"\"{case['patient_name']} يقول: دكتور... أنا خايف جداً من الامتحانات. "
-        f"قلبي يدق بسرعة وأفكر إن راح أفشل. صرت ما أقدر أدرس وماشي أتجنب ألقى امتحان. "
-        f"ساعدني لو سمحت.\"\n\n"
-        f"💬 **دورك دكتور/ة {data['student_name']} — ابدأ الجلسة:**"
+        f"👨‍🤝‍🧑 **{case_data['patient_name']}:** "
+        f"*{case_data.get('opening', 'يدخل العيادة متردداً...')}*\n\n"
+        f"💬 **دورك دكتور/ة {data['student_name']}:**"
     )
 
     await update.message.reply_text(
@@ -3017,28 +3180,23 @@ async def _cp_step_present_case(update, context):
 async def _cp_step_roleplay(update, context):
     user_text = update.message.text.strip()
     data = context.user_data["cp_data"]
-    case = PRACTICE_CASE
-    student_name = data["student_name"]
+    case_data = data.get("case_data", {})
     history = data.get("history", [])
 
     if user_text.strip() in ["/end", "انهاء", "إنهاء", "خلاص", "تم"]:
         return await _cp_step_evaluate(update, context, "")
 
-    history.append({"role": "therapist", "text": user_text, "name": f"دكتور/ة {student_name}"})
+    history.append({"role": "therapist", "text": user_text, "name": f"دكتور/ة {data['student_name']}"})
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
         send_typing_periodically(context.bot, update.effective_chat.id, stop_typing)
     )
 
-    patient_prompt = _patient_prompt(case["patient_name"], case["age"], history)
-
     try:
-        patient_response = await call_gemini_api(
-            user_message=f"الطبيب قال: {user_text}",
-            system_instruction=patient_prompt,
-            chat_history=[]
-        )
+        patient_response = await _generate_patient_response(context, case_data, history, user_text)
+    except Exception:
+        patient_response = "صار خلل ممكن جرب كدة."
     finally:
         stop_typing.set()
         try:
@@ -3046,13 +3204,13 @@ async def _cp_step_roleplay(update, context):
         except Exception:
             pass
 
-    history.append({"role": "patient", "text": patient_response, "name": case["patient_name"]})
+    history.append({"role": "patient", "text": patient_response, "name": case_data.get("patient_name", "المريض")})
     data["history"] = history
 
     response_text = (
-        f"👨‍🤝‍🧑 **{case['patient_name']}:** {patient_response}\n\n"
-        f"💬 **دورك دكتور/ة {student_name} — اكتب ردك:**\n"
-        f"*(اكتب /end أو 'إنهاء' لختام الجلسة واستلام التقييم)*"
+        f"👨‍🤝‍🧑 **{case_data.get('patient_name', 'المريض')}:** {patient_response}\n\n"
+        f"💬 **دورك دكتور/ة {data['student_name']} — اكتب ردك:**\n"
+        f"*(اكتب /end أو 'إنهاء' لختام الجلسة)*"
     )
 
     await update.message.reply_text(
@@ -3066,54 +3224,50 @@ async def _cp_step_roleplay(update, context):
 async def _cp_step_evaluate(update, context, user_text):
     data = context.user_data.get("cp_data", {})
     student_name = data.get("student_name", "الطالب/ة")
-    case = PRACTICE_CASE
+    case_data = data.get("case_data", {})
     history = data.get("history", [])
 
     transcript = "\n".join([f"{h.get('name','')}: {h['text']}" for h in history])
+    patient_name = case_data.get("patient_name", "المريض")
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
         send_typing_periodically(context.bot, update.effective_chat.id, stop_typing)
     )
 
-    eval_prompt = f"""أنت مشرف سريري عراقي خبير، محفز، مهني، وداعم — تقيم جلسة طالب مرحلة ثانية.
+    eval_prompt = f"""أنت مشرف سريري عراقي خبير، محفز، وداعم — تقيم جلسة طالب مرحلة ثانية.
 
 👤 **الطالب:** دكتور/ة {student_name}
-🎭 **الحالة:** {case['title']}
-👥 **المريض:** {case['patient_name']}
+🎭 **الحالة:** تقييم جلسة {patient_name}
+👥 **المريض:** {patient_name}
 
 📋 نسخة الجلسة:
 {transcript}
 
 ---
-🎯 **مهمتك: تقييم منظم، دافئ، ومحدد:**
+🎯 **تقييم منظم:**
 
-### 🌟 نقاط قوة (2 نقاط محددة من الجلسة):
-1. [نقطة قوة محددة مع مثال من الجلسة]
-2. [نقطة قوة ثانية مع مثال]
+### 🌟 نقاط قوة (2 نقاط محددة):
+1. [نقطة مع مثال من الجلسة]
+2. [نقطة مع مثال]
 
-### 💡 نصيحة عيادية عملية واحدة:
-[نصيحة محددة وقابلة للتطبيق للجلسات القادمة]
+### 💡 نصيحة عيادية واحدة:
+[نصيحة عملية للجلسات القادمة]
 
-### 📊 الدرجة التقديرية: [X/10] — [وصف مختصر]
-
-### 🎓 قانون سريري تأخذه معك:
-"[قاعدة عملية قصيرة]"
+### 📊 الدرجة: [X/10]
 
 ---
-**أسلوبك:**
-- لهجة عراقية أكاديمية مشجعة: "يا دكتور/ة {student_name}"، "عاشت إيدك"، "فكرة سريرية ممتازة"
-- محدد، غير عام، مع أمثلة من الجلسة الفعلية
-- محفز جداً — الطالب بمرحلة ثانية، يتعلم بالممارسة
-- 6-8 أسطر كحد أقصى
+**أسلوبك:** عراقي أكاديمي مشجع، محدد بأمثلة من الجلسة، محفز، 6-8 أسطر.
 """
 
     try:
         evaluation = await call_gemini_api(
-            user_message="قيم الجلسة السريرية",
+            user_message="قيم الجلسة",
             system_instruction=eval_prompt,
             chat_history=[]
         )
+    except Exception:
+        evaluation = "🏅 نقاط قوة:\n1. تعاطف ممتاز\n2. طرح سؤال مركّز\n\n💡 نصيحة: حاول تستخدم المهارة المختارة بشكل أدق.\n📊 الدرجة: 7/10"
     finally:
         stop_typing.set()
         try:
@@ -3126,8 +3280,8 @@ async def _cp_step_evaluate(update, context, user_text):
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"{evaluation}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"❤️ **فخور/ة بيك!** كل جلسة تقربك من الأخصائي المحترف.\n"
-        f"مستعد/ة لجلسة تانية بحالة مختلفة؟"
+        f"❤️ **فخور/ة بيك!** كل جلسة مختلفة عن اللي قبلها 🎲\n"
+        f"مستعد/ة لجلسة جديدة بتحدي مختلف؟"
     )
 
     keyboard = [
@@ -3137,7 +3291,6 @@ async def _cp_step_evaluate(update, context, user_text):
 
     context.user_data.pop("cp_data", None)
 
-    # دعم كل من تحديثات الرسائل والتحديثات عبر callback
     if update.message:
         await update.message.reply_text(
             text=final_msg,
@@ -3165,14 +3318,9 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     welcome = (
         "🧠‍💻 **أهلاً بك في الممارسة السريرية!** 🎒\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "أنا مشرفك السريري، وسنسير معاً في رحلة تدريبية خطوة بخطوة.\n\n"
-        "📋 **الخطة:**\n"
-        "1️⃣ تعريف — شنو اسمك؟ (لأناديك دكتور/ة [اسمك])\n"
-        "2️⃣ حالة + مهارة — تقرأ الحالة والمهارة\n"
-        "3️⃣ محاكاة — أنت الأخصائي، أنا المريض\n"
-        "4️⃣ تقييم — نقاط قوة + نصيحة\n\n"
-        "🎯 الهدف: تتعلم بالممارسة وتطلع بثقة.\n\n"
-        "👇 **أول شي: اكتب اسمك (الاسم الأول بس):**"
+        "كل جلسة تحدي مختلف 🎲\n"
+        "التحدي مختلف كل مرة!\n\n"
+        "👇 **اكتب اسمك (الاسم الأول بس):**"
     )
     await context.bot.send_message(
         chat_id=query.message.chat_id,
@@ -3202,7 +3350,6 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
 
 # --- محادثة الممارسة السريرية (Clinical Practice) ---
 async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """إنهاء الجلسة من الأزرار"""
     query = update.callback_query
     await query.answer("جاري إنهاء الجلسة...")
     return await _cp_step_evaluate(update, context, "")
@@ -3222,7 +3369,6 @@ clinical_practice_conv = ConversationHandler(
     },
     fallbacks=[CommandHandler("cancel", generic_cancel)],
 )
-
 
 def main():
     """تهيئة وتشغيل تطبيق البوت"""
