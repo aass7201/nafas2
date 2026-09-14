@@ -3110,15 +3110,8 @@ async def _cp_step_get_name(update, context, name):
         parse_mode=ParseMode.MARKDOWN
     )
 
-    case_data = None
-    try:
-        case_data = await _generate_case(context, student_name)
-    except Exception:
-        case_data = None
-
-    if case_data is None:
-        import random
-        case_data = random.choice(CASE_POOL)
+    import random
+    case_data = random.choice(CASE_POOL)
 
     context.user_data["cp_data"]["case_data"] = case_data
     context.user_data["cp_data"]["step"] = "present_case"
@@ -3285,8 +3278,8 @@ async def _cp_step_evaluate(update, context, user_text):
     )
 
     keyboard = [
-        [InlineKeyboardButton("🔄 جلسة جديدة", callback_data="clinical_practice_start")],
-        [InlineKeyboardButton("🔙 رجوع للمركز", callback_data="psy_main")]
+        [InlineKeyboardButton("🔄 جلسة جديدة", callback_data="cp_new_session")],
+        [InlineKeyboardButton("🔙 رجوع للمركز", callback_data="cp_back_to_center")]
     ]
 
     context.user_data.pop("cp_data", None)
@@ -3350,9 +3343,53 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
 
 # --- محادثة الممارسة السريرية (Clinical Practice) ---
 async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """إنهاء جلسة الممارسة السريرية والعودة للقائمة الرئيسية"""
+    context.user_data.pop("cp_data", None)
+
+    if update.callback_query:
+        await update.callback_query.answer("تم إنهاء الجلسة")
+        try:
+            await update.callback_query.message.delete()
+        except Exception:
+            pass
+        await context.bot.send_message(
+            chat_id=update.callback_query.message.chat_id,
+            text="🏁 **تم إنهاء الجلسة بنجاح.**\nيرجعت للقائمة الرئيسية.",
+            reply_markup=get_student_main_keyboard(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    elif update.message:
+        await update.message.reply_text(
+            "🏁 **تم إنهاء الجلسة بنجاح.**\nيرجعت للقائمة الرئيسية.",
+            reply_markup=get_student_main_keyboard(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    return ConversationHandler.END
+
+
+async def cp_back_to_center(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """العودة للمركز الرئيسي من شاشة التقييم"""
     query = update.callback_query
-    await query.answer("جاري إنهاء الجلسة...")
-    return await _cp_step_evaluate(update, context, "")
+    await query.answer()
+    context.user_data.pop("cp_data", None)
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text="🔙 **عادت للمركز الرئيسي.**",
+        reply_markup=get_student_main_keyboard(),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    return ConversationHandler.END
+
+
+async def cp_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await psy_main_callback(update, context)
+    return ConversationHandler.END
 
 
 clinical_practice_conv = ConversationHandler(
@@ -3362,12 +3399,20 @@ clinical_practice_conv = ConversationHandler(
     ],
     states={
         CLINICAL_PRACTICE_STATE: [
+            MessageHandler(filters.Regex("^(❌ إلغاء|🏁 إنهاء الجلسة)$"), cp_end_callback),
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_clinical_practice_message),
             CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"),
             CallbackQueryHandler(cp_end_callback, pattern="^cp_end$"),
+            CallbackQueryHandler(cp_cancel_callback, pattern="^psy_main$"),
+            CommandHandler("cancel", cp_end_callback),
         ]
     },
-    fallbacks=[CommandHandler("cancel", generic_cancel)],
+    fallbacks=[
+        CommandHandler("cancel", cp_end_callback),
+        MessageHandler(filters.Regex("^(❌ إلغاء|🏁 إنهاء الجلسة)$"), cp_end_callback),
+        CallbackQueryHandler(cp_start_callback, pattern="^cp_new_session$"),
+        CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"),
+    ],
 )
 
 def main():
@@ -3546,6 +3591,10 @@ def main():
     application.add_handler(academic_chat_conv)
     application.add_handler(roleplay_conv)
     application.add_handler(clinical_practice_conv)
+
+    # معالجات زرين التقييم في الممارسة السريرية (تعمل حتى بعد إنهاء المحادثة)
+    application.add_handler(CallbackQueryHandler(cp_start_callback, pattern="^cp_new_session$"))
+    application.add_handler(CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"))
 
     # معالجات أوامر الأدمن
     application.add_handler(CommandHandler("admin", admin_command))
