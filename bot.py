@@ -99,15 +99,15 @@ SUBJECTS = [
 CATEGORIES = {
     "books": {
         "title": "📚 الكتب والمناهج",
-        "desc": "الكتب والمصادر والمناهج المعتمدة"
+        "desc": "تفضلوا المصادر والكتب المنهجية المعتمدة لمرحلتنا 📖:"
     },
     "summaries": {
         "title": "📄 الملخصات والملازم",
-        "desc": "الملازم الدراسية والملخصات المعتمدة"
+        "desc": "هاي أحدث الملازم والتلخيصات مرتبة ومجهزة لإفادتكم 📝:"
     },
     "exams": {
         "title": "📝 الأسئلة الامتحانية",
-        "desc": "نماذج الأسئلة الشهرية والنهائية السابقة"
+        "desc": "نماذج الأسئلة الامتحانية (شهريات وفاينل) حتى تراجعون منها وتضمنون النجاح 🎯:"
     }
 }
 
@@ -208,7 +208,8 @@ class DatabaseManager:
         row = cursor.fetchone()
         if row and list(row.values())[0] == 0:
             default_text = (
-                "📌 **أهلاً بكم زملائنا طلبة المرحلة الثانية (قسم علم النفس)** 🧠✨\n\n"
+                "📣 **آخر تبليغات القاعة والجدول الدراسي للمرحلة الثانية 🗓️:**\n\n"
+                "أهلاً بكم زملاءنا وأعزاءنا طلبة قسم علم النفس - جامعة كربلاء (المرحلة الثانية)! 🧠✨\n\n"
                 "سوف يتم نشر أي تبليغات رسمية بخصوص المحاضرات، القاعات، أو الجداول الامتحانية هنا بتحديث مستمر.\n\n"
                 "نتمنى لكم دوام التوفيق والنجاح والتفوق يا رب! 🤍"
             )
@@ -319,7 +320,7 @@ class DatabaseManager:
         row = cursor.fetchone()
         cursor.close()
         conn.close()
-        return row["text"] if row else "ماكو أي تبليغات منشورة حالياً عيني."
+        return row["text"] if row else "حالياً ماكو تبليغات منشورة.. أول ما ينزل شي جديد يخص مرحلتنا راح ينزل هنا فوراً 🔔"
 
     def set_announcement(self, text: str):
         conn = self.get_connection()
@@ -652,11 +653,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.register_user(user.id, user.username, full_name)
 
     welcome_text = (
-        f"هلا بيك عيني **{user.first_name}** بنفاس2 🧠 نورتنا يا غالي!\n\n"
-        f"🎓 هذا بوتكم الأكاديمي الشامل لطلبة **قسم علم النفس - المرحلة الثانية**.\n\n"
-        f"سويناه خصيصاً حتى يسهل عليكم الوصول للمناهج والملازم والأسئلة بكل سهولة، "
-        f"وضفنالكم قسم **الدعم والعلاج النفسي** للاستشارات الذكية والتدريب السريري 🤍\n\n"
-        f"👇 **اختر من الأزرار الجوه شنو اللي تريده، وتدلل:**"
+        f"يا هلا وناغمة بيكم زملاءنا وأعزاءنا بقسم علم النفس - جامعة كربلاء (المرحلة الثانية)! 🧠✨\n\n"
+        f"هذا البوت بيتكم الصغير المخصص حتى يجمعنا، ويسهل عليكم الوصول لكل الكتب والملازم والأسئلة الخاصة بمرحلتنا بضغطة زر واحدة.\n\n"
+        f"تفضلوا واختاروا القسم اللي تحتاجوه من القائمة أدناه 👇🌸"
     )
 
     await update.message.reply_text(
@@ -672,11 +671,7 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
 
     if text == "📚 الكتب والمناهج":
         cat_info = CATEGORIES["books"]
-        msg = (
-            f"📚 **{cat_info['title']}**\n"
-            f"{cat_info['desc']}\n\n"
-            f"👇 اختر المادة اللي تدور على كتبها وتدلل:"
-        )
+        msg = cat_info['desc']
         await update.message.reply_text(
             text=msg,
             reply_markup=get_subjects_inline_keyboard("books", prefix="get_sub")
@@ -684,11 +679,7 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
 
     elif text == "📄 الملخصات والملازم":
         cat_info = CATEGORIES["summaries"]
-        msg = (
-            f"📄 **{cat_info['title']}**\n"
-            f"{cat_info['desc']}\n\n"
-            f"👇 اختر المادة حتى تطلعلك ملازمها ومحاضراتها:"
-        )
+        msg = cat_info['desc']
         await update.message.reply_text(
             text=msg,
             reply_markup=get_subjects_inline_keyboard("summaries", prefix="get_sub")
@@ -696,11 +687,7 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
 
     elif text == "📝 الأسئلة الامتحانية":
         cat_info = CATEGORIES["exams"]
-        msg = (
-            f"📝 **{cat_info['title']}**\n"
-            f"{cat_info['desc']}\n\n"
-            f"👇 اختر المادة وتطلعلك كل الأسئلة الشهرية والفاينل السابقة:"
-        )
+        msg = cat_info['desc']
         await update.message.reply_text(
             text=msg,
             reply_markup=get_subjects_inline_keyboard("exams", prefix="get_sub")
@@ -709,27 +696,19 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
     elif text == "📢 التبليغات والجدول":
         announcement = db.get_latest_announcement()
         msg = (
-            "📢 **لوحة التبليغات والجدول الدراسي الرسمية:**\n"
+            "📣 **آخر تبليغات القاعة والجدول الدراسي للمرحلة الثانية 🗓️:**\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
             f"{announcement}\n\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "🧠 بوت Nafas2 - وياكم خطوة بخطوة 🤍"
+            "🧠 نفاس2 - وياكم خطوة بخطوة 🤍"
         )
         await update.message.reply_text(text=msg, parse_mode=ParseMode.MARKDOWN)
 
     elif text == "🧠 الدعم والعلاج النفسي":
         msg = (
-"🧠 **قسم التدريب العملي السريري - Nafas2** 🎭\n\n"
-            "🎯 **اختبار عملي تفاعلي:** صِر أخصائي نفسي وواجه حالات عملاء حقيقية.\n\n"
-            "📚 **التعلم بالسؤال السقراطي (خطوة بخطوة):**\n"
-            "• جولة 1: العلاقة العلاجية + فتح الجلسة\n"
-            "• جولة 2: النموذج المعرفي (فكرة → شعور → سلوك)\n"
-            "• جولة 3: الأسئلة السقراطية للكشف عن التشوهات\n"
-            "• جولة 4: إعادة الهيكلة المعرفية (دليل + بديل + تجربة)\n"
-            "• جولة 5: التخطيط للجلسات (أهداف ذكية SMART)\n"
-            "• جولة 6+: متابعة، تعديل، حالات معقدة\n\n"
-            "💡 **كل جولة = مهارة وحدة، تقييم فوري، قانون جديد تأخذه معك.**\n"
-            "🇮🇶 باللهجة العراقية، قريب، ممتع، ومحفز."
+            "💡 **مساحتنا الخاصة للمصادر الإثرائية والمعلومات الخاصة بالصحة والعلاج النفسي 🧠:**\n\n"
+            "هنا تجدون معلومات ومصادر قيمة تدعم صحتكم النفسية وتثري مسيرتكم الدراسية.\n\n"
+            "👇 اختاروا النشاط اللي يناسبكم:"
         )
         await update.message.reply_text(
             text=msg,
@@ -739,16 +718,15 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
 
     elif text in ["ℹ️ عن البوت 🤍", "ℹ️ حول البوت"]:
         about_text = (
-            "🧠 **حول بوت Nafas2 (Nafas2):**\n\n"
-            "منصة أكاديمية وخدمية مجانية مسواية بكل حب لطلبة **قسم علم النفس - المرحلة الثانية** 🎓\n\n"
-            "✨ **شنو يقدملك البوت؟**\n"
+            "🤍 **عن البوت ℹ️**\n\n"
+            "مساحة طلابية خدمية مخصصة لتسهيل رحلتنا الدراسية في قسم علم النفس / جامعة كربلاء - المرحلة الثانية 🎓✨\n\n"
+            "✨ **شنو يقدملكم البوت؟**\n"
             "• أرشفة كاملة للكتب والمناهج المعتمدة.\n"
             "• توفير الملازم والتلخيصات المهمة.\n"
             "• نماذج أسئلة شهرية ونهائية سابقة.\n"
             "• تبليغات المحاضرات وجدول الامتحانات أول بأول.\n"
-            "• قسم الدعم النفسي الذكي (اختبار تحديد فئات + استشارات ذكية + تمارين استرخاء).\n"
-            "• عيادة تدريبية وحالات دراسية مفترضة لطلاب علم النفس.\n\n"
-            "كل التوفيق والنجاح يا دكاترة وأخصائيي المستقبل! 🤍🌟"
+            "• قسم الدعم النفسي بمصادر إثرائية وتمارين عملية.\n\n"
+            "كل التوفيق والنجاح يا دكاترة وأخصائيي المستقبل! 🌟🤍"
         )
         await update.message.reply_text(text=about_text, parse_mode=ParseMode.MARKDOWN)
 
@@ -771,15 +749,13 @@ async def student_get_subject_files(update: Update, context: ContextTypes.DEFAUL
 
     if not files:
         no_files_msg = (
-            f"⚠️ **فدوه لقلبك، بعدنا ما رافعين ملفات لمادة ({subject_name})**\n\n"
-            f"📂 القسم: **{cat_info['title']}**\n\n"
-            f"لا تشيل هم، الإدارة والممثلين راح يرفعوها عن قريب جداً! 🤍"
+            f"حالياً هذا القسم فارغ، وأول ما يتوفر شي جديد يخص مرحلتنا راح نرفعه هنا فوراً 🔔"
         )
         await query.message.reply_text(text=no_files_msg, parse_mode=ParseMode.MARKDOWN)
         return
 
     await query.message.reply_text(
-        f"📂 **صار وتدلل، جاري دز ملفات ({subject_name})**\n"
+        f"📂 **تفضلوا، هاي هي الملفات المتوفرة لمادة ({subject_name}):**\n"
         f"🏷️ القسم: {cat_info['title']}\n"
         f"📊 عدد الملفات: {len(files)} ملف 📄\n\n"
         f"انتظر ثواني بس ويوصلنك... ⏳",
@@ -788,11 +764,12 @@ async def student_get_subject_files(update: Update, context: ContextTypes.DEFAUL
 
     for f in files:
         caption = (
+            f"تفضلوا الملف المطلوب 📥.. كل التوفيق والنجاح الدائم لأحلى أطباء ونفسانيين بالمستقبل! 🌟\n\n"
             f"📄 **{safe_md(f['file_name'])}**\n"
             f"🏷️ المادة: {f['subject']}\n"
             f"📂 القسم: {cat_info['title']}\n"
             f"━━━━━━━━━━━━\n"
-            f"🧠 بوت Nafas2 - علم النفس (المرحلة الثانية)"
+            f"🧠 نفاس2 - علم النفس - جامعة كربلاء (المرحلة الثانية)"
         )
         try:
             if f["media_type"] == "photo":
@@ -839,11 +816,7 @@ async def books_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
 
     cat_info = CATEGORIES["books"]
-    msg = (
-        f"📚 **{cat_info['title']}**\n"
-        f"{cat_info['desc']}\n\n"
-        f"👇 اختر المادة اللي تدور على كتبها وتدلل:"
-    )
+    msg = cat_info['desc']
 
     await query.message.edit_text(
         text=msg,
@@ -858,11 +831,7 @@ async def summaries_menu_callback(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
     cat_info = CATEGORIES["summaries"]
-    msg = (
-        f"📄 **{cat_info['title']}**\n"
-        f"{cat_info['desc']}\n\n"
-        f"👇 اختر المادة حتى تطلعلك ملازمها ومحاضراتها:"
-    )
+    msg = cat_info['desc']
 
     await query.message.edit_text(
         text=msg,
@@ -877,11 +846,7 @@ async def exams_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
 
     cat_info = CATEGORIES["exams"]
-    msg = (
-        f"📝 **{cat_info['title']}**\n"
-        f"{cat_info['desc']}\n\n"
-        f"👇 اختر المادة وتطلعلك كل الأسئلة الشهرية والفاينل السابقة:"
-    )
+    msg = cat_info['desc']
 
     await query.message.edit_text(
         text=msg,
