@@ -3811,11 +3811,12 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
     user_text = update.message.text.strip()
 
     data = context.user_data.get("cp_data", {})
-    step = data.get("step", "get_name")
 
-    # Remove main reply keyboard immediately at entry
-    if step == "get_name" and user_text in ("🧪 الممارسة السريرية", "📚 الكتب والمناهج", "📄 الملخصات والملازم", "📝 الأسئلة الامتحانية", "📢 التبليغات والجدول", "ℹ️ عن البوت 🤍"):
+    # Remove main reply keyboard immediately on entry
+    if not data:
         await update.message.reply_text("", reply_markup=ReplyKeyboardRemove())
+
+    step = data.get("step", "get_name")
 
     if step == "get_name":
         if user_text in ("🧪 الممارسة السريرية", "📚 الكتب والمناهج", "📄 الملخصات والملازم", "📝 الأسئلة الامتحانية", "📢 التبليغات والجدول", "ℹ️ عن البوت 🤍"):
@@ -3871,7 +3872,7 @@ async def cp_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 clinical_practice_conv = ConversationHandler(
     entry_points=[
         CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"),
-        MessageHandler(filters.Regex("^🧪 الممارسة السريرية$"), handle_clinical_practice_message),
+        MessageHandler(filters.Regex("الممارسة السريرية"), handle_clinical_practice_message),
         CommandHandler("clinical", handle_clinical_practice_message),
     ],
     states={
@@ -4063,15 +4064,24 @@ def main():
     )
 
     # إضافة معالجات المحادثات
-    application.add_handler(upload_conv)
-    application.add_handler(broadcast_conv)
-    application.add_handler(schedule_conv)
-    application.add_handler(gemini_conv)
-    application.add_handler(prompts_conv)
-    application.add_handler(counselor_chat_conv)
-    application.add_handler(academic_chat_conv)
-    application.add_handler(roleplay_conv)
-    application.add_handler(clinical_practice_conv)
+    # Register clinical_practice_conv FIRST with group=0 so its entry point
+    # intercepts the menu button text before any other ConversationHandler's
+    # catch-all TEXT state handler can intercept it.
+    # Standalone text handler for the menu button (catches it even when inside
+    # another conversation's state).
+    application.add_handler(
+        MessageHandler(filters.Regex("الممارسة السريرية"), handle_clinical_practice_message),
+        group=0,
+    )
+    application.add_handler(clinical_practice_conv, group=0)
+    application.add_handler(upload_conv, group=0)
+    application.add_handler(broadcast_conv, group=0)
+    application.add_handler(schedule_conv, group=0)
+    application.add_handler(gemini_conv, group=0)
+    application.add_handler(prompts_conv, group=0)
+    application.add_handler(counselor_chat_conv, group=0)
+    application.add_handler(academic_chat_conv, group=0)
+    application.add_handler(roleplay_conv, group=0)
 
     # معالجات زرين التقييم في الممارسة السريرية (تعمل حتى بعد إنهاء المحادثة)
     application.add_handler(CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"))
