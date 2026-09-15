@@ -3811,11 +3811,6 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
     user_text = update.message.text.strip()
 
     data = context.user_data.get("cp_data", {})
-
-    # Remove main reply keyboard immediately on entry
-    if not data:
-        await update.message.reply_text("", reply_markup=ReplyKeyboardRemove())
-
     step = data.get("step", "get_name")
 
     if step == "get_name":
@@ -4067,12 +4062,6 @@ def main():
     # Register clinical_practice_conv FIRST with group=0 so its entry point
     # intercepts the menu button text before any other ConversationHandler's
     # catch-all TEXT state handler can intercept it.
-    # Standalone text handler for the menu button (catches it even when inside
-    # another conversation's state).
-    application.add_handler(
-        MessageHandler(filters.Regex("الممارسة السريرية"), handle_clinical_practice_message),
-        group=0,
-    )
     application.add_handler(clinical_practice_conv, group=0)
     application.add_handler(upload_conv, group=0)
     application.add_handler(broadcast_conv, group=0)
