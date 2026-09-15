@@ -3562,7 +3562,7 @@ async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAU
 
         keyboard = [
             [InlineKeyboardButton("💡 تلميح سريري", callback_data="cp_hint")],
-            [InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]
+        [InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريري", callback_data="cp_end")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -3668,7 +3668,7 @@ async def _cp_step_roleplay(update, context):
 
     keyboard = [
         [InlineKeyboardButton("💡 تلميح سريري", callback_data="cp_hint")],
-        [InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]
+        [InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريري", callback_data="cp_end")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -3797,7 +3797,6 @@ async def _cp_prepare_case(context, student_name: str, user_title: str) -> dict:
         pass
     return case_data
 
-
 async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.callback_query:
         query = update.callback_query
@@ -3816,7 +3815,6 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     context.user_data.pop("cp_data", None)
 
-    # Remove main reply keyboard immediately
     await context.bot.send_message(
         chat_id=chat_id,
         text="🧪 جاري تحضير العيادة...",
@@ -3839,14 +3837,16 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             "step": "welcome",
         }
 
-        welcome = await _cp_ai_generate_briefing(
-            context, db_name if has_name else first_name, user_title if has_name else "دكتور"
+        welcome = (
+            "🩺 <b>مرحباً بك في وحدة الممارسة السريرية</b>\n\n"
+            "هذه المساحة مخصصة لاختبار مهاراتك التشخيصية والتعامل مع الحالات النفسية في بيئة آمنة وتطويرية.\n\n"
+            "اضغط على الزر أدناه لبدء استلام الحالة وتفحص بطاقة المريض."
         )
         await context.bot.send_message(
             chat_id=chat_id,
             text=welcome,
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🚀 ابدأ اختبار الحالة", callback_data="cp_start_case")]]
+                [[InlineKeyboardButton("🚀 ابدأ استلام الحالة", callback_data="cp_start_case")]]
             ),
             parse_mode=ParseMode.HTML
         )
