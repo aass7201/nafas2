@@ -3527,6 +3527,9 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
         send_typing_periodically(context.bot, chat_id, stop_typing)
     )
 
+    # Try Gemini, fallback to static template on any error
+    case_data = None
+    intake = None
     try:
         case_data = await _cp_prepare_case(context, student_name, user_title)
         data["case_data"] = case_data
@@ -3535,6 +3538,42 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
         intake = await _cp_ai_generate_intake_card(
             context, case_data, student_name, user_title
         )
+    except Exception as e:
+        # Full fallback: use static CASE_POOL data directly
+        import random
+        fallback_case = random.choice(CASE_POOL).copy()
+        case_data = fallback_case
+        data["case_data"] = case_data
+        data["step"] = "intake"
+
+        patient_name = case_data.get("patient_name", "المريض")
+        patient_age = case_data.get("age", "22")
+        patient_gender = case_data.get("patient_gender", "")
+        complaint = case_data.get("complaint", "")
+        profession = case_data.get("profession", "")
+        body_language = case_data.get("body_language", "")
+
+        gender_text = ""
+        if patient_gender == "male":
+            gender_text = " (ذكر)"
+        elif patient_gender == "female":
+            gender_text = " (أنثى)"
+
+        prof_text = ""
+        if profession:
+            prof_text = f"💼 <b>الوظيفة/التخصص:</b> {profession}\n"
+
+        intake = (
+            f"📋 <b>بطاقة الحالة السريرية</b>\n"
+            f"👤 <b>الاسم:</b> {patient_name}{gender_text}\n"
+            f"🎂 <b>العمر:</b> {patient_age}\n"
+            f"{prof_text}"
+            f"🩺 <b>الشكوى الرئيسية:</b> {complaint}\n"
+            f"🤸 <b>السلوكيات الجسدية:</b> {body_language or '*(يدخل ببطء، يتنفس بتوتر، يتشحذ)*'}"
+        )
+
+    # Always send the intake card with the single button
+    try:
         await context.bot.send_message(
             chat_id=chat_id,
             text=intake,
@@ -3542,6 +3581,12 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
                 [[InlineKeyboardButton("💬 اختبر نفسك ودع المريض يتحدث", callback_data="cp_start_dialogue")]]
             ),
             parse_mode=ParseMode.HTML
+        )
+    except Exception:
+        # Last resort: send plain text without markup
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=intake
         )
     finally:
         stop_typing.set()
