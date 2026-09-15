@@ -1887,7 +1887,10 @@ async def roleplay_next_scenario_callback(update: Update, context: ContextTypes.
         "💡 *لا تخاف من الغلط - الغلط معلم، وأنا هنا أصحح وأسألك أسئلة سقراطية توصلك للحل*"
     )
 
-    keyboard = [[InlineKeyboardButton("❌ إنهاء الاختبار والعودة", callback_data="end_roleplay")]]
+    keyboard = [
+        [InlineKeyboardButton("💡 شنو أجاوبه؟", callback_data="cp_hint")],
+        [InlineKeyboardButton("❌ إنهاء الاختبار والعودة", callback_data="end_roleplay")]
+    ]
 
     # حذف رسالة السيناريو السابق وإرسال رسالة جديدة نظيفة
     try:
@@ -2075,6 +2078,68 @@ async def end_roleplay_callback(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=get_student_main_keyboard()
     )
     return ConversationHandler.END
+
+
+async def cp_hint_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Pop-up Beginner Response Helper: Shows a brief hint via Telegram alert without cluttering chat."""
+    query = update.callback_query
+    await query.answer()  # answer immediately to clear loading state
+
+    scenario = context.user_data.get("roleplay_scenario", "")
+    round_num = context.user_data.get("roleplay_round", 1)
+    history = context.user_data.get("roleplay_history", [])
+
+    if not scenario:
+        await query.answer(text="ماكو سيناريو حالياً للاسف، ابدأ اختبار جديد 😊", show_alert=True)
+        return
+
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(
+        send_typing_periodically(context.bot, query.message.chat_id, stop_typing)
+    )
+
+    # المهارة المستهدفة للجولة (للتوجيه)
+    skill_by_round = {
+        1: "العلاقة العلاجية + فتح الجلسة (ترحيب، احتواء، ثقة)",
+        2: "النموذج المعرفي: فكرة → شعور → سلوك",
+        3: "الأسئلة السقراطية (شنو الدليل؟ البديل؟ الاستثناء؟)",
+        4: "إعادة الهيكلة المعرفية: الدليل + البديل + التجربة",
+        5: "أهداف ذكية (SMART) + خطة جلسة + واجب",
+        6: "متابعة + خطة طوارئ + منع الانتكاس",
+    }
+    skill_focus = skill_by_round.get(round_num, "تطبيق مهارات متكامل")
+
+    hint_prompt = (
+        f"أنت مشرف سريري عراقي لطيف، قريب، محفز. "
+        f"طالب علم نفس (مرحلة ثانية) عم يمرّن بمشهد عميل ويحتاج مساعدة سريعة.\n\n"
+        f"📊 الجولة: {round_num} | المهارة: {skill_focus}\n\n"
+        f"مشهد العميل:\n{scenario}\n\n"
+        f"مهمتك: أعطِ **سطرين فقط، قصيرين جداً، بلهجة عراقية بسيطة**، "
+        f"يكونوا **نصيحة عملية مباشرة** للطالب شنو يقول/يسوي الآن.\n"
+        f"ممنوع المصطلحات الأكاديمية، ممنوع الشرح، ممنوع الإطالة.\n\n"
+        f"أمثلة للأسلوب:\n"
+        f"- اسأله: (شلون حسيت لما صارت هالموقف؟)\n"
+        f"- طمأنه: (طبيعي تحس كذا، إحنا نمرّن سوا)\n"
+        f"- القانون: (الفكرة مو حقيقة، شنو الدليل؟)\n"
+        f"- وجّهه: (خليه يحكي أكثر، سمعني إيّاه)\n\n"
+        f"أطبع السطرين مفصولين بسطر جديد، بدون ترقيم أو علامات."
+    )
+
+    try:
+        hint_text = await call_gemini_api(
+            user_message="أعطني تلميح سريع هسه",
+            system_instruction=hint_prompt,
+            chat_history=None
+        )
+    finally:
+        stop_typing.set()
+        try:
+            await typing_task
+        except Exception:
+            pass
+
+    # عرض كـ Pop-up Alert، ما ينرسل بالچات
+    await query.answer(text=hint_text, show_alert=True)
 
 
 async def roleplay_retry_same_skill_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -3003,8 +3068,8 @@ CASE_POOL = [
 ]
 
 
-def _get_user_title_and_name(context, user_id: int) -> tuple:
-    """تحديد العنوان (دكتور/دكتورة) بناءً على الاسم المسجل أو قاعدة البيانات"""
+def _get_user_title_and_name(context, user_id: int, first_name: str = "") -> tuple:
+    """تحديد العنوان (دكتور/دكتورة) بناءً على الاسم المسجل أو قاعدة البيانات أو أول اسم في Telegram"""
     cp_data = context.user_data.get("cp_data", {})
     name = cp_data.get("student_name", "")
 
@@ -3024,7 +3089,7 @@ def _get_user_title_and_name(context, user_id: int) -> tuple:
         except Exception:
             pass
 
-    name = name.strip() or "الطالب"
+    name = name.strip() or first_name.strip() or "الطالب"
     if name.endswith("ة") or name.endswith("ى"):
         title = "دكتورة"
     else:
@@ -3102,30 +3167,18 @@ async def _generate_patient_response(context, case_data: dict, history: list, us
         for h in history[-8:]:
             history_text += f"{h.get('name','')}: {h['text']}\n"
 
-    prompt = f"""أنت **{case_data['patient_name']}**، مريض/ة حقيقي بحالة: {case_data['complaint']}.
+    prompt = f"""أنت مريض/ة في جلسة علاج نفسي. اسمك: {case_data['patient_name']}.
 
-👤 **ملفك الطبي:**
-- العمر: {case_data.get('age', '20')} سنة
-- الجنس: {case_data.get('patient_gender', 'غير محدد')}
-- الشكوى: {case_data['complaint']}
-- الخوف الجوهري: {case_data['core_fear']}
-- التجنب: {case_data['avoidance']}
-- الأفكار التلقائية: {', '.join(case_data.get('thoughts', []))}
-- المهارة اللي يجربيها المعالج: {skill['name']}
+حالتك: {case_data['complaint']}.
 
-🎯 **شخصية المرضية:**
-- تطلب التعاطف والاستماع الفعال
-- لو يطبع نصائح جاهزة أو يقول "لا تقلقي" → تقاوم وتغلق
-- لو يطبق المهارة {skill['name']} بشكل صحيح → تفتح وتتعاون
-- لهجة عراقية بيضاء دافئة، متنوعة في المشاعر
+ردودك لازم تكون:
+- كلام مباشر للمعالج باللهجة العراقية البيضاء
+- مؤشرات سلوكية وعواطف حقيقية بين قوسين (مثال: *(ينظر للأرض بتوتر)*)
+- 3-6 أسطر فقط
+- لا تشرح أي مهارة علاجية ولا تذكر الجلسة
+- لا تضع عناوين أو رءوس أو تنبيهات
 
-📝 **تاريخ الجلسة الحالي:**
-{history_text}
-
-ملاحظة مهمة: تحدث إلى المعالج باسمه **{user_title} {student_name}** بطبيعية وود، واستخدمي مؤشرات سلوكية وعواطف حقيقية بين قوسين.
-
-ردك الآن رداً طبيعياً (3-6 أسطر) يعكس شخصيتك المرضية وتفاعلك مع ما قاله المعالج. لا تذكري المهارة أو تشرحينها — كوني مريضاً حقيقياً.
-"""
+أنت مريض حقيقي — استجب بشكل طبيعي وعاطفي لما قاله المعالج."""
 
     try:
         response = await call_gemini_api(
@@ -3148,12 +3201,16 @@ async def _cp_ai_generate_welcome(context, student_name: str, user_title: str, a
 مهمتك: اكتب رسالة ترحيب دافئة ومشوقة تطلب منه اسمه المفضل (الاسم الأول بس) واللقب المناسب (دكتور أو دكتورة).
 رابطه بلهجة عربية دافئة، مشجعة، غير نمطية. مختصر (3-4 أسطر).
 لا تستخدم "دكتور/ة" — اسأله بوضوح أيهما يفضل. لا تستخدم تنسيق Markdown.
+قاعدة صارمة: لا تستخدم أسماء أزرار قائمة الموقع كاسم للطالب.
 """
     else:
         system_prompt = f"""أنت مشرف سريري عراقي متمرز، دافئ، وملهم. تتحدث باللهجة العراقية البيضاء.
 
 أنت ترحب بالطالب {student_name} ({user_title}) في عيادتك الافتراضية.
 
+User Name: {student_name}
+User Title: {user_title}
+قاعدة صارمة: لا تستخدم أسماء أزرار قائمة الموقع كاسم للطالب. عنون الطالب باستخدام {user_title} {student_name} فقط، واستخدم القواعد النحوية المناسبة للجنس.
 مهمتك: اكتب ترحيباً شخصياً مشوقاً يرحب به باسمه وعنوانه التحديدي ({user_title} {student_name}).
 اطلب منه الاستعداد لبدء جلسة تدريبية مع مريضه الأول. رني حارة، مشجعة، غير نمطية. مختصر (3-4 أسطر).
 لا تكتب "دكتور/ة" — استخدم العنوان الفعلي ({user_title}). لا تستخدم تنسيق Markdown.
@@ -3187,6 +3244,10 @@ async def _cp_ai_generate_patient_intro(context, case_data: dict, student_name: 
 - اسم المريض: {patient_name}
 - عمر المريض: {patient_age}
 
+User Name: {student_name}
+User Title: {user_title}
+قاعدة صارمة: لا تستخدم أسماء أزرار قائمة الموقع كاسم للطالب. عنون الطالب باستخدام {user_title} {student_name} فقط، واستخدم القواعد النحوية المناسبة للجنس.
+
 مهمتك: اكتب مشهد افتتاحي كامل وغامر للواقع العراقي:
 1. دخولك للغرفة مع مؤشرات جسدية واضحة بين قوسين (مشية، تنفس، إيقاع، إلخ)
 2. أول كلام تقوله للمعالج (3-5 جمل طبيعية، شخصية، باللهجة العراقية البيضاء)
@@ -3213,6 +3274,10 @@ async def _cp_ai_generate_briefing(context, student_name: str, user_title: str) 
     system_prompt = f"""أنت أخصائي نفسي مشرف عراقي، دافئ، محفز، ومحترف. تتحدث باللهجة العراقية البيضاء.
 
 الطالب الحالي: {user_title} {student_name} — طالب مرحلة ثانية بيدانا.
+
+User Name: {student_name}
+User Title: {user_title}
+قاعدة صارمة: لا تستخدم أسماء أزرار قائمة الموقع كاسم للطالب. عنون الطالب باستخدام {user_title} {student_name} فقط، واستخدم القواعد النحوية المناسبة للجنس.
 
 مهمتك: اكتب توجيهات موجزة ومشجعة تفسر له:
 🎯 **هدف الجلسة**: تدريب سريري آمن للمبتدئين — لا توجد إجابات صحيحة أو خطأ، كل خطوة تعلم.
@@ -3243,6 +3308,10 @@ async def _cp_ai_generate_patient_scene(context, case_data: dict, student_name: 
 السياق:
 - المعالج: {user_title} {student_name}
 - المهارة السريرية المركزية: {skill['name']}
+
+User Name: {student_name}
+User Title: {user_title}
+قاعدة صارمة: لا تستخدم أسماء أزرار قائمة الموقع كاسم للطالب. عنون الطالب باستخدام {user_title} {student_name} فقط، واستخدم القواعد النحوية المناسبة للجنس.
 
 مهمتك: اكتب مشهد دخول المريض للغرفة بالكامل من الصفر — 100% أصلي، غير مكرر.
 
@@ -3388,9 +3457,7 @@ async def _cp_step_roleplay(update, context):
     data["history"] = history
 
     response_text = (
-        f"👨‍🤝‍🧑 <b>{case_data.get('patient_name', 'المريض')}:</b> {patient_response}\n\n"
-        f"💬 <b>دورك {user_title} {student_name} — اكتب ردك:</b>\n"
-        f"<i>اكتب /end أو 'إنهاء' لختام الجلسة</i>"
+        f"<b>{case_data.get('patient_name', 'المريض')}:</b> {patient_response}"
     )
 
     await update.message.reply_text(
@@ -3423,6 +3490,10 @@ async def _cp_step_evaluate(update, context, user_text):
 🎭 **الحالة:** تقييم جلسة {patient_name}
 👥 **المريض:** {patient_name}
 🛠️ **المهارة المركزة:** {skill['name']}
+
+User Name: {student_name}
+User Title: {user_title}
+قاعدة صارمة: لا تستخدم أسماء أزرار قائمة الموقع كاسم للطالب. عنونه باستخدام {user_title} {student_name} فقط، واستخدم القواعد النحوية المناسبة للجنس.
 
 📋 **نسخة الجلسة الكاملة:**
 {transcript}
@@ -3516,16 +3587,24 @@ async def _cp_prepare_case(context, student_name: str, user_title: str) -> dict:
 
 
 async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    try:
-        await query.message.delete()
-    except Exception:
-        pass
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        chat_id = query.message.chat_id
+        user_id = query.from_user.id
+        first_name = query.from_user.first_name
+    else:
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        first_name = update.effective_user.first_name
+
     context.user_data.pop("cp_data", None)
 
-    user_id = query.from_user.id
-    user_title, db_name = _get_user_title_and_name(context, user_id)
+    user_title, db_name = _get_user_title_and_name(context, user_id, first_name)
     has_name = _cp_db_has_name(user_id)
 
     context.user_data["cp_data"] = {
@@ -3536,13 +3615,13 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
-        send_typing_periodically(context.bot, query.message.chat_id, stop_typing)
+        send_typing_periodically(context.bot, chat_id, stop_typing)
     )
     try:
         if has_name:
             briefing = await _cp_ai_generate_briefing(context, db_name, user_title)
             await context.bot.send_message(
-                chat_id=query.message.chat_id,
+                chat_id=chat_id,
                 text=briefing,
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton("🩺 استقبال الحالة ودخول العيادة", callback_data="cp_start_patient")]]
@@ -3553,7 +3632,7 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 context, db_name, user_title, asking_name=True
             )
             await context.bot.send_message(
-                chat_id=query.message.chat_id,
+                chat_id=chat_id,
                 text=welcome,
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton("❌ إلغاء", callback_data="psy_main")]]
@@ -3595,6 +3674,8 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
     step = data.get("step", "get_name")
 
     if step == "get_name":
+        if user_text in ("🧪 الممارسة السريرية", "📚 الكتب والمناهج", "📄 الملخصات والملازم", "📝 الأسئلة الامتحانية", "📢 التبليغات والجدول", "ℹ️ عن البوت 🤍"):
+            return await cp_start_callback(update, context)
         return await _cp_step_get_name(update, context, user_text)
     elif step == "briefing":
         return CLINICAL_PRACTICE_STATE
@@ -3794,6 +3875,7 @@ def main():
                 CallbackQueryHandler(roleplay_next_scenario_callback, pattern="^roleplay_next_scenario$"),
                 CallbackQueryHandler(roleplay_retry_same_skill_callback, pattern="^roleplay_retry_same_skill$"),
                 CallbackQueryHandler(end_roleplay_callback, pattern="^end_roleplay$"),
+                CallbackQueryHandler(cp_hint_callback, pattern="^cp_hint$"),
             ]
         },
         fallbacks=[
