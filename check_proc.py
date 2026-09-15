@@ -3,18 +3,26 @@ check_proc.py - فحص حالة عملية بوت Nafas2
 يتحقق من تشغيل البوت واتصال قاعدة البيانات وصحته العامة.
 """
 
-import sys
 import os
+os.environ["PYTHONUTF8"] = "1"
+
+import sys
 import subprocess
 import json
 import socket
 import time
 from datetime import datetime
 
-# مسار ملف النتائج
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 STATUS_FILE = "bot_status.json"
 
-# ألوان للتنسيق
+
 class Colors:
     GREEN = "\033[92m"
     RED = "\033[91m"
