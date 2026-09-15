@@ -3809,8 +3809,13 @@ def _cp_db_has_name(user_id: int) -> bool:
 
 async def handle_clinical_practice_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_text = update.message.text.strip()
+
     data = context.user_data.get("cp_data", {})
     step = data.get("step", "get_name")
+
+    # Remove main reply keyboard immediately at entry
+    if step == "get_name" and user_text in ("🧪 الممارسة السريرية", "📚 الكتب والمناهج", "📄 الملخصات والملازم", "📝 الأسئلة الامتحانية", "📢 التبليغات والجدول", "ℹ️ عن البوت 🤍"):
+        await update.message.reply_text("", reply_markup=ReplyKeyboardRemove())
 
     if step == "get_name":
         if user_text in ("🧪 الممارسة السريرية", "📚 الكتب والمناهج", "📄 الملخصات والملازم", "📝 الأسئلة الامتحانية", "📢 التبليغات والجدول", "ℹ️ عن البوت 🤍"):
@@ -3867,6 +3872,7 @@ clinical_practice_conv = ConversationHandler(
     entry_points=[
         CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"),
         MessageHandler(filters.Regex("^🧪 الممارسة السريرية$"), handle_clinical_practice_message),
+        CommandHandler("clinical", handle_clinical_practice_message),
     ],
     states={
         CLINICAL_PRACTICE_STATE: [
@@ -4068,6 +4074,7 @@ def main():
     application.add_handler(clinical_practice_conv)
 
     # معالجات زرين التقييم في الممارسة السريرية (تعمل حتى بعد إنهاء المحادثة)
+    application.add_handler(CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"))
     application.add_handler(CallbackQueryHandler(cp_start_callback, pattern="^cp_new_session$"))
     application.add_handler(CallbackQueryHandler(cp_enter_patient_callback, pattern="^cp_enter_patient$"))
     application.add_handler(CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"))
