@@ -508,7 +508,7 @@ SYSTEM_PROMPT_ACADEMIC = """
 5. أجب بنقاط أكاديمية مركزة ومباشرة دون إطالة مفرطة حتى يستوعب الطالب الشرح بسهولة وسرعة.
 """
 
-# البرومبت التوجيهي لمدرب المحاكاة العملي (Roleplay Evaluator) - تعليمي خطوة بخطوة، سقراطي، ممتع
+# البرومبت التوجيهي لمدرب التدريب السريري (Roleplay Evaluator) - تعليمي خطوة بخطوة، سقراطي، ممتع
 SYSTEM_PROMPT_ROLEPLAY = """
 أنت 'مُدَرِّب Nafas2 العَمَلِي' - مشرف سريري عراقي خبير، **صبور، محفز، ومعلم حقيقي**. اللي أمامك **طالب مبتدئ (مرحلة ثانية)** ما يعرف يعالج بعد.
 أسلوبك: **أستاذ حنون، قريب، يتكلم بلهجة عراقية بسيطة وبيضاء** (كلمات: يا دكتور، شلون؟، عيني، فدوه لقلبك، عاشت إيدك، بطل، لا تنسحب، ركز، تفوق، زين كذا، استمر، شكو ماكو، شايف؟).
@@ -1319,7 +1319,7 @@ CLINICAL_CASES = {
             "🛠️ **الخطة العلاجية المعرفية السلوكية (CBT):**\n"
             "1. **إعادة الهيكلة المعرفية (Cognitive Restructuring):** تفكيك تشوه 'الكل أو لا شيء' وتحدي الفكرة الكارثية من الفشل.\n"
             "2. **التنفس البطني وضبط الاستجابة الفسيولوجية:** تدريب العميل على التنفس الحجابي لتقليل نشاط الجهاز العصبي السمبثاوي بالقاعة.\n"
-            "3. **فنية التعرض التخيلي والواقعي التدريجي (Systematic Desensitization):** محاكاة أجواء الامتحان وحل نماذج أسئلة بوقت محدد لكسر حاجز الرهبة.\n"
+            "3. **فنية التعرض التخيلي والواقعي التدريجي (Systematic Desensitization):** تمثيل أجواء الامتحان وحل نماذج أسئلة بوقت محدد لكسر حاجز الرهبة.\n"
             "4. **إدارة الوقت السلوكية:** تفكيك المادة إلى أجزاء صغيرة لمنع التسويف التجنبي."
         )
     },
@@ -1643,11 +1643,11 @@ async def end_academic_chat_callback(update: Update, context: ContextTypes.DEFAU
 
 
 # =============================================================================
-#     10. محاكاة العميل العملي - اختبار الأخصائي (Roleplay Evaluator)
+#     10. التدريب السريري العملي - اختبار الأخصائي (Roleplay Evaluator)
 # =============================================================================
 
 async def roleplay_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """بدء اختبار المحاكاة العملي: الطالب يصير أخصائي ويواجه عميل"""
+    """بدء اختبار التدريب السريري العملي: الطالب يصير أخصائي ويواجه عميل"""
     query = update.callback_query
     await query.answer()
 
@@ -2041,7 +2041,7 @@ async def handle_roleplay_message(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def end_roleplay_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """إنهاء اختبار المحاكاة العملي"""
+    """إنهاء اختبار التدريب السريري العملي"""
     query = update.callback_query
     await query.answer("تم إنهاء الاختبار العملي")
     context.user_data.pop("roleplay_history", None)
@@ -2312,7 +2312,7 @@ async def admin_prompts_start(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"2️⃣ **المشرف الأكاديمي (تدريب للآخرين):**\n"
         f"   الطول: {len(current_prompts['academic'])} حرف\n"
         f"   الحالة: {'✅ مخصص' if db.get_setting(PROMPT_KEYS['academic']) else '📋 افتراضي'}\n\n"
-        f"3️⃣ **مدرب المحاكاة العملي (اختبار عملي):**\n"
+        f"3️⃣ **مدرب التدريب السريري (اختبار عملي):**\n"
         f"   الطول: {len(current_prompts['roleplay'])} حرف\n"
         f"   الحالة: {'✅ مخصص' if db.get_setting(PROMPT_KEYS['roleplay']) else '📋 افتراضي'}\n\n"
         "👇 **اختر النموذج اللي تريد تعدله:**"
@@ -2321,7 +2321,7 @@ async def admin_prompts_start(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = [
         [InlineKeyboardButton("1️⃣ المرشد النفسي", callback_data="prompt_edit:counselor")],
         [InlineKeyboardButton("2️⃣ المشرف الأكاديمي", callback_data="prompt_edit:academic")],
-        [InlineKeyboardButton("3️⃣ مدرب المحاكاة العملي", callback_data="prompt_edit:roleplay")],
+        [InlineKeyboardButton("3️⃣ مدرب التدريب السريري", callback_data="prompt_edit:roleplay")],
         [InlineKeyboardButton("🔄 إعادة الكل للافتراضي", callback_data="prompt_reset_all")],
         [InlineKeyboardButton("🔙 رجوع للوحة التحكم", callback_data="admin_back_to_main")],
     ]
@@ -2350,7 +2350,7 @@ async def admin_prompt_edit_callback(update: Update, context: ContextTypes.DEFAU
     titles = {
         "counselor": "المرشد النفسي (علاج لك)",
         "academic": "المشرف الأكاديمي (تدريب للآخرين)",
-        "roleplay": "مدرب المحاكاة العملي (اختبار عملي)",
+        "roleplay": "مدرب التدريب السريري (اختبار عملي)",
     }
 
     # عرض البرومبت الحالي (مختصر للعرض)
@@ -3296,7 +3296,7 @@ async def _cp_step_get_name(update, context, name):
         await update.message.reply_text(
             text=briefing,
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🚀 أنا جاهز، استقبل المريض", callback_data="cp_start_patient")]]
+                [[InlineKeyboardButton("🩺 استقبال الحالة ودخول العيادة", callback_data="cp_start_patient")]]
             ),
         )
     finally:
@@ -3340,7 +3340,7 @@ async def cp_start_patient(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             chat_id=query.message.chat_id,
             text=scene,
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🏁 إنهاء الجلسة والتقييم", callback_data="cp_end")]]
+                [[InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]]
             ),
         )
     finally:
@@ -3395,7 +3395,7 @@ async def _cp_step_roleplay(update, context):
 
     await update.message.reply_text(
         text=response_text,
-         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏁 إنهاء الجلسة والتقييم", callback_data="cp_end")]]),
+         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]]),
         parse_mode=ParseMode.HTML
     )
     return CLINICAL_PRACTICE_STATE
@@ -3531,7 +3531,7 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data["cp_data"] = {
         "student_name": db_name if has_name else "",
         "user_title": user_title if has_name else "",
-        "step": "get_name",
+        "step": "briefing" if has_name else "get_name",
     }
 
     stop_typing = asyncio.Event()
@@ -3540,22 +3540,12 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     try:
         if has_name:
-            case_data = await _cp_prepare_case(context, db_name, user_title)
-            context.user_data["cp_data"]["case_data"] = case_data
-            context.user_data["cp_data"]["step"] = "roleplay"
-
-            welcome = await _cp_ai_generate_welcome(
-                context, db_name, user_title, asking_name=False
-            )
-            intro = await _cp_ai_generate_patient_scene(
-                context, case_data, db_name, user_title
-            )
-            msg = f"{welcome}\n\n{intro}"
+            briefing = await _cp_ai_generate_briefing(context, db_name, user_title)
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=msg,
+                text=briefing,
                 reply_markup=InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("🏁 إنهاء الجلسة والتقييم", callback_data="cp_end")]]
+                    [[InlineKeyboardButton("🩺 استقبال الحالة ودخول العيادة", callback_data="cp_start_patient")]]
                 ),
             )
         else:
@@ -3607,7 +3597,6 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
     if step == "get_name":
         return await _cp_step_get_name(update, context, user_text)
     elif step == "briefing":
-        await update.message.reply_text("👆 اضغط على الزر بالأسفل لبدء المحاكاة:")
         return CLINICAL_PRACTICE_STATE
     elif step == "roleplay":
         return await _cp_step_roleplay(update, context)
@@ -3661,7 +3650,7 @@ clinical_practice_conv = ConversationHandler(
     ],
     states={
         CLINICAL_PRACTICE_STATE: [
-            MessageHandler(filters.Regex("^(❌ إلغاء|🏁 إنهاء الجلسة.*)$"), cp_end_callback),
+            MessageHandler(filters.Regex("^(❌ إلغاء|🏁 ختام الجلسة.*)$"), cp_end_callback),
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_clinical_practice_message),
             CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"),
             CallbackQueryHandler(cp_start_patient, pattern="^cp_start_patient$"),
@@ -3672,7 +3661,7 @@ clinical_practice_conv = ConversationHandler(
     },
     fallbacks=[
         CommandHandler("cancel", cp_end_callback),
-        MessageHandler(filters.Regex("^(❌ إلغاء|🏁 إنهاء الجلسة.*)$"), cp_end_callback),
+        MessageHandler(filters.Regex("^(❌ إلغاء|🏁 ختام الجلسة.*)$"), cp_end_callback),
         CallbackQueryHandler(cp_start_callback, pattern="^cp_new_session$"),
         CallbackQueryHandler(cp_start_patient, pattern="^cp_start_patient$"),
         CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"),
@@ -3792,7 +3781,7 @@ def main():
         ],
     )
 
-    # --- 7. محادثة المحاكاة العملي - اختبار الأخصائي (Roleplay) ---
+    # --- 7. محادثة التدريب السريري العملي - اختبار الأخصائي (Roleplay) ---
     roleplay_conv = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(roleplay_start_callback, pattern="^roleplay_start$"),
