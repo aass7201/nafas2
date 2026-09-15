@@ -34,7 +34,6 @@ if sys.platform == "win32":
         pass
 
 import httpx
-import google.generativeai as genai
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -59,6 +58,13 @@ from telegram.ext import (
 #                        1. الإعدادات والمتغيرات العامة
 # =============================================================================
 
+# استيراد اختياري لـ google-generativeai (يُستخدم فقط في generate_dynamic_case)
+try:
+    import google.generativeai as genai
+    _HAS_GENAI = True
+except ImportError:
+    _HAS_GENAI = False
+
 # توكن البوت الخاص بك (يقرأ من متغير البيئة)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
@@ -67,7 +73,8 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "8993961580"))
 
 # مفتاح Google Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-genai.configure(api_key=GEMINI_API_KEY)
+if _HAS_GENAI:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # نموذج الذكاء الاصطناعي الأسرع والأخف استجابة
 GEMINI_MODEL = "gemini-3.1-flash-lite"
@@ -3943,6 +3950,8 @@ async def _cp_step_evaluate(update, context, user_text):
 
 async def generate_dynamic_case(skill_index: int) -> dict:
     """Generate a clinical case dynamically via Gemini"""
+    if not _HAS_GENAI:
+        return None
     model = genai.GenerativeModel(GEMINI_MODEL)
     prompt = f"""أنت نفسي سريري متخصص في توليد حالات تدريبية واقعية لطلاب علم نفس.
 
