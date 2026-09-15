@@ -3495,12 +3495,32 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
     user_title = data.get("user_title", "")
 
     if not student_name or not user_title:
-        data["step"] = "get_name"
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="👋 مرحباً! برجاء إدخال اسمك الأول لبدء الاختبار السريري:",
-        )
-        return CLINICAL_PRACTICE_STATE
+        user_id = update.effective_user.id
+        first_name = update.effective_user.first_name
+        try:
+            user_title_val, db_name = await asyncio.to_thread(
+                _get_user_title_and_name, context, user_id, first_name
+            )
+            has_name = await asyncio.to_thread(_cp_db_has_name, user_id)
+            if has_name:
+                student_name = db_name
+                user_title = user_title_val
+                data["student_name"] = student_name
+                data["user_title"] = user_title
+            else:
+                data["step"] = "get_name"
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="👋 مرحباً! برجاء إدخال اسمك الأول لبدء الاختبار السريري:",
+                )
+                return CLINICAL_PRACTICE_STATE
+        except Exception:
+            data["step"] = "get_name"
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="👋 مرحباً! برجاء إدخال اسمك الأول لبدء الاختبار السريري:",
+            )
+            return CLINICAL_PRACTICE_STATE
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
@@ -3798,65 +3818,45 @@ async def _cp_prepare_case(context, student_name: str, user_title: str) -> dict:
     return case_data
 
 async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if update.callback_query:
-        query = update.callback_query
-        await query.answer()
-        try:
-            await query.message.delete()
-        except Exception:
-            pass
-        chat_id = query.message.chat_id
-        user_id = query.from_user.id
-        first_name = query.from_user.first_name
-    else:
-        chat_id = update.effective_chat.id
-        user_id = update.effective_user.id
-        first_name = update.effective_user.first_name
+    # Step 1: Static welcome, no Gemini or DB lookups to prevent hang
+    chat_id = None
+    try:
+        if update.callback_query:
+            query = update.callback_query
+            await query.answer()
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            chat_id = query.message.chat_id
+        elif update.message:
+            chat_id = update.effective_chat.id
+    except Exception:
+        if chat_id is None:
+            chat_id = update.effective_chat.id
 
     context.user_data.pop("cp_data", None)
+    context.user_data["cp_data"] = {"step": "welcome"}
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="...",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+    except Exception:
+        pass
 
     await context.bot.send_message(
         chat_id=chat_id,
-        text="🧪 جاري تحضير العيادة...",
-        reply_markup=ReplyKeyboardRemove(),
+        text="🩺 **مرحباً بك في وحدة الممارسة السريرية**\n\n"
+             "هذه المساحة مخصصة لاختبار مهاراتك التشخيغية والتعامل مع الحالات النفسية في بيئة آمنة وتطويرية.\n\n"
+             "اضغط على الزر أدناه لبدء استلام الحالة وتفحص بطاقة المريض.",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🚀 ابدأ استلام الحالة", callback_data="cp_start_case")]]
+        ),
+        parse_mode=ParseMode.MARKDOWN
     )
-
-    stop_typing = asyncio.Event()
-    typing_task = asyncio.create_task(
-        send_typing_periodically(context.bot, chat_id, stop_typing)
-    )
-    try:
-        user_title, db_name = await asyncio.to_thread(
-            _get_user_title_and_name, context, user_id, first_name
-        )
-        has_name = await asyncio.to_thread(_cp_db_has_name, user_id)
-
-        context.user_data["cp_data"] = {
-            "student_name": db_name if has_name else "",
-            "user_title": user_title if has_name else "",
-            "step": "welcome",
-        }
-
-        welcome = (
-            "🩺 <b>مرحباً بك في وحدة الممارسة السريرية</b>\n\n"
-            "هذه المساحة مخصصة لاختبار مهاراتك التشخيصية والتعامل مع الحالات النفسية في بيئة آمنة وتطويرية.\n\n"
-            "اضغط على الزر أدناه لبدء استلام الحالة وتفحص بطاقة المريض."
-        )
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=welcome,
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🚀 ابدأ استلام الحالة", callback_data="cp_start_case")]]
-            ),
-            parse_mode=ParseMode.HTML
-        )
-    finally:
-        stop_typing.set()
-        try:
-            await typing_task
-        except Exception:
-            pass
-
     return CLINICAL_PRACTICE_STATE
 
 
@@ -3886,17 +3886,35 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
     data = context.user_data.get("cp_data", {})
     step = data.get("step", "get_name")
 
-    if step in ("welcome", "get_name"):
-        if user_text in ("🧪 الممارسة السريرية", "📚 الكتب والمناهج", "📄 الملخصات والملازم", "📝 الأسئلة الامتحانية", "📢 التبليغات والجدول", "ℹ️ عن البوت 🤍", "العيادة", "استقبال الحالة", "التدريب السريري"):
-            return await cp_start_callback(update, context)
-        if step == "welcome":
-            return CLINICAL_PRACTICE_STATE
-        return await _cp_step_get_name(update, context, user_text)
-    elif step == "intake":
+    other_menu_buttons = (
+        "📚 الكتب بالمناهد",
+        "📄 الملخصات والملازم",
+        "📝 الأسئلة الامتحاني",
+        "📢 التبليغات والجدول",
+        "ℹ️ عن البوت 🤍",
+    )
+
+    if user_text in other_menu_buttons:
+        context.user_data.pop("cp_data", None)
+        await update.message.reply_text(user_text, reply_markup=ReplyKeyboardRemove())
+        return await handle_student_reply_buttons(update, context)
+
+    if user_text in ("🧪 الممارسة السريرية", "العيادة", "استقباف الحالة", "التدريب السريري", "محاكاة"):
+        return await cp_start_callback(update, context)
+
+    if step == "welcome":
         return CLINICAL_PRACTICE_STATE
-    elif step == "roleplay":
+
+    if step == "get_name":
+        return await _cp_step_get_name(update, context, user_text)
+
+    if step == "intake":
+        return CLINICAL_PRACTICE_STATE
+
+    if step == "roleplay":
         return await _cp_step_roleplay(update, context)
-    elif step == "evaluate":
+
+    if step == "evaluate":
         return await _cp_step_evaluate(update, context, user_text)
 
     return CLINICAL_PRACTICE_STATE
@@ -3968,6 +3986,25 @@ clinical_practice_conv = ConversationHandler(
         CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"),
     ],
 )
+
+
+
+async def cp_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log all errors and prevent bot crash."""
+    import traceback
+    exc_info = context.error
+    tb_str = ''.join(traceback.format_exception(type(exc_info), exc_info, exc_info.__traceback__))
+    print(f"\n[ERROR] Clinical practice handler exception:", file=sys.stderr)
+    print(tb_str, file=sys.stderr)
+
+    if update and isinstance(update, Update) and update.effective_message:
+        try:
+            await update.effective_message.reply_text(
+                "تم التعامل مع الخطأ. الرجاء المحاولة مرة أخرى أو إرسال /start."
+            )
+        except Exception:
+            pass
+
 
 def main():
     """تهيئة وتشغيل تطبيق البوت"""
@@ -4186,6 +4223,8 @@ def main():
 
     # تشغيل البوت بنظام Polling
     print("🚀 بوت Nafas2 المطور قيد التشغيل والجاهزية لاستقبال الرسائل...")
+    application.add_error_handler(cp_error_handler)
+
     application.run_polling()
 
 
