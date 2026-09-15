@@ -34,6 +34,7 @@ if sys.platform == "win32":
         pass
 
 import httpx
+import google.generativeai as genai
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -66,6 +67,7 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "8993961580"))
 
 # مفتاح Google Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+genai.configure(api_key=GEMINI_API_KEY)
 
 # نموذج الذكاء الاصطناعي الأسرع والأخف استجابة
 GEMINI_MODEL = "gemini-3.1-flash-lite"
@@ -3582,7 +3584,7 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("💬 اختبر نفسك ودع المريض يتحدث", callback_data="cp_start_dialogue")]]
             ),
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.MARKDOWN
         )
     except Exception:
         # Last resort: send plain text without markup
@@ -3637,7 +3639,7 @@ async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAU
             chat_id=query.message.chat_id,
             text=opening,
             reply_markup=reply_markup,
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.MARKDOWN
         )
     finally:
         stop_typing.set()
@@ -3852,10 +3854,48 @@ User Title: {user_title}
     return ConversationHandler.END
 
 
+async def generate_dynamic_case(skill_index: int) -> dict:
+    """Generate a clinical case dynamically via Gemini"""
+    model = genai.GenerativeModel(GEMINI_MODEL)
+    prompt = f"""أنت نفسي سريري متخصص في توليد حالات تدريبية واقعية لطلاب علم نفس.
+
+المهمة: ولّد حالة سريرية واحدة فقط مناسبة لاختبار طالب علم نفس (مرحلة ثانية - مبتدئ).
+
+المتطلبات الصارمة:
+1. الحالة واقعية، مأصّرة نفسياً، مناسبة لبيئة جامعية عراقية
+2. المريض شخص واقعي (اسم، عمر 18-28، خلفية قصيرة، سياق حياتي محدد)
+3. الأعراض: أفكار تلقائية مشوهة، أعراض جسدية، سلوكيات تجنبية، مشاعر واضحة
+4. الافتتاحية: 3-5 أسطر باللهجة العراقية البيضاء، عاطفية ومؤثرة، مع مؤشرات سلوكية جسدية بين قوسين
+5. لا تكرر أي قوالب ثابتة — اجعلها فريدة تماماً
+
+صيغة الإخراج JSON الصارمة (بدون أي شرح إضافي، بدون HTML، بدون تنسيق):
+{{
+    "patient_name": "اسم عربي واقعي",
+    "age": رقم,
+    "patient_gender": "male" أو "female",
+    "complaint": "وصف موجز للشكوى الرئيسية",
+    "core_fear": "الخوف الجوهري الخفي",
+    "avoidance": "سلوكيات تجنبية محددة",
+    "physical": "أعراض جسدية محددة",
+    "thoughts": ["فكرة تلقائية 1", "فكرة تلقائية 2", "فكرة تلقائية 3"],
+    "body_language": "وصف سلوكي جسدي للحظة الافتتاحية (بين قوسين)",
+    "opening": "نص الافتتاح الكامل للمريض مع المؤشرات السلوكية",
+    "skill_index": {skill_index}
+}}
+"""
+    response = await model.generate_content(prompt)
+    return json.loads(response.text)
+
+
 async def _cp_prepare_case(context, student_name: str, user_title: str) -> dict:
-    """Prepare case data — try Gemini, fall back to CASE_POOL"""
+    """Prepare case data — try dynamic generation, fall back to CASE_POOL"""
     import random
-    case_data = random.choice(CASE_POOL).copy()
+    import asyncio
+    try:
+        skill_idx = random.randint(0, len(SKILLS) - 1)
+        case_data = await asyncio.to_thread(generate_dynamic_case, skill_idx)
+    except Exception:
+        case_data = random.choice(CASE_POOL).copy()
     try:
         generated = await _generate_case(context, student_name, user_title)
         if generated:
@@ -3897,7 +3937,7 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await context.bot.send_message(
         chat_id=chat_id,
         text="🩺 **مرحباً بك في وحدة الممارسة السريرية**\n\n"
-             "هذه المساحة مخصصة لاختبار مهاراتك التشخيغية والتعامل مع الحالات النفسية في بيئة آمنة وتطويرية.\n\n"
+             "هذه المساحة مخصصة لاختبار مهاراتك التشخيصية والتعامل مع الحالات النفسية في بيئة آمنة وتطويرية.\n\n"
              "اضغط على الزر أدناه لبدء استلام الحالة وتفحص بطاقة المريض.",
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("🚀 ابدأ استلام الحالة", callback_data="cp_start_case")]]
