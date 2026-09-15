@@ -3663,15 +3663,15 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
 
         prof_text = ""
         if profession:
-            prof_text = f"💼 <b>الوظيفة/التخصص:</b> {profession}\n"
+            prof_text = f"💼 **الوظيفة/التخصص:** {profession}\n"
 
         intake = (
-            f"📋 <b>بطاقة الحالة السريرية</b>\n"
-            f"👤 <b>الاسم:</b> {patient_name}{gender_text}\n"
-            f"🎂 <b>العمر:</b> {patient_age}\n"
+            f"📋 **بطاقة الحالة السريرية**\n"
+            f"👤 **الاسم:** {patient_name}{gender_text}\n"
+            f"🎂 **العمر:** {patient_age}\n"
             f"{prof_text}"
-            f"🩺 <b>الشكوى الرئيسية:</b> {complaint}\n"
-            f"🤸 <b>السلوكيات الجسدية:</b> {body_language or '*(يدخل ببطء، يتنفس بتوتر، يتشحذ)*'}"
+            f"🩺 **الشكوى الرئيسية:** {complaint}\n"
+            f"🤸 **السلوكيات الجسدية:** {body_language or '*(يدخل ببطء، يتنفس بتوتر، يتشحذ)*'}"
         )
 
     # Always send the intake card with the single button
@@ -3783,7 +3783,7 @@ async def _cp_step_get_name(update, context, name):
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("💬 اختبر نفسك ودع المريض يتحدث", callback_data="cp_start_dialogue")]]
             ),
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.MARKDOWN
         )
     finally:
         stop_typing.set()
