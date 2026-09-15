@@ -3737,20 +3737,22 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         reply_markup=ReplyKeyboardRemove(),
     )
 
-    user_title, db_name = _get_user_title_and_name(context, user_id, first_name)
-    has_name = _cp_db_has_name(user_id)
-
-    context.user_data["cp_data"] = {
-        "student_name": db_name if has_name else "",
-        "user_title": user_title if has_name else "",
-        "step": "intake" if has_name else "get_name",
-    }
-
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
         send_typing_periodically(context.bot, chat_id, stop_typing)
     )
     try:
+        user_title, db_name = await asyncio.to_thread(
+            _get_user_title_and_name, context, user_id, first_name
+        )
+        has_name = await asyncio.to_thread(_cp_db_has_name, user_id)
+
+        context.user_data["cp_data"] = {
+            "student_name": db_name if has_name else "",
+            "user_title": user_title if has_name else "",
+            "step": "intake" if has_name else "get_name",
+        }
+
         if has_name:
             case_data = await _cp_prepare_case(context, db_name, user_title)
             context.user_data["cp_data"]["case_data"] = case_data
