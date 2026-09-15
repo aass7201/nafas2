@@ -2085,6 +2085,62 @@ async def cp_hint_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()  # answer immediately to clear loading state
 
+    cp_data = context.user_data.get("cp_data", {})
+
+    if cp_data:
+        case_data = cp_data.get("case_data", {})
+        scenario = case_data.get("complaint", "")
+        student_name = cp_data.get("student_name", "الطالب")
+        user_title = cp_data.get("user_title", "دكتور")
+        skill = SKILLS[case_data.get("skill_index", 0)]
+        skill_focus = skill["name"]
+
+        if not scenario:
+            await query.answer(text="ماكو شكاية حالياً للاسف، جرّب جلسة جديدة 😊", show_alert=True)
+            return
+
+        hint_prompt = (
+            f"أنت مشرف سريري عراقي لطيف، قريب، محفز. "
+            f"طالب علم نفس (مرحلة ثانية) عم يمرّن في الممارسة السريرية ويحتاج مساعدة سريعة.\n\n"
+            f"User Name: {student_name}\n"
+            f"User Title: {user_title}\n"
+            f"قاعدة صارمة: لا تستخدم أسماء أزرار قائمة الموقع كاسم للطالب. عنونه باستخدام {user_title} {student_name} فقط، واستخدم القواعد النحوية المناسبة للجنس.\n\n"
+            f"📊 المهارة السريرية: {skill_focus}\n"
+            f"شكوى المريض:\n{scenario}\n\n"
+            f"مهمتك: أعطِ **سطرين فقط، قصيرين جداً، بلهجة عراقية بسيطة**، "
+            f"يكونوا **نصيحة عملية مباشرة** للطالب شنو يقول/يسوي الآن.\n"
+            f"ممنوع المصطلحات الأكاديمية، ممنوع الشرح، ممنوع الإطالة.\n\n"
+            f"أمثلة للأسلوب:\n"
+            f"- اسأله: (شلون حسيت لما صارت هالموقف؟)\n"
+            f"- طمأنه: (طبيعي تحس كذا، إحنا نمرّن سوا)\n"
+            f"- القانون: (الفكرة مو حقيقة، شنو الدليل؟)\n"
+            f"- وجّهه: (خليه يحكي أكثر، سمعني إيّاه)\n\n"
+            f"أطبع السطرين مفصولين بسطر جديد، بدون ترقيم أو علامات."
+        )
+
+        stop_typing = asyncio.Event()
+        typing_task = asyncio.create_task(
+            send_typing_periodically(context.bot, query.message.chat_id, stop_typing)
+        )
+
+        try:
+            hint_text = await call_gemini_api(
+                user_message="أعطني تلميح سريع هسه",
+                system_instruction=hint_prompt,
+                chat_history=None
+            )
+        except Exception:
+            hint_text = "💡 ركّز على الاستماع الفعّال واطرح سؤالًا مفتوحًا يدعو المريض للتعبير عن مشاعره."
+        finally:
+            stop_typing.set()
+            try:
+                await typing_task
+            except Exception:
+                pass
+
+        await query.answer(text=hint_text, show_alert=True)
+        return
+
     scenario = context.user_data.get("roleplay_scenario", "")
     round_num = context.user_data.get("roleplay_round", 1)
     history = context.user_data.get("roleplay_history", [])
@@ -2140,6 +2196,7 @@ async def cp_hint_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # عرض كـ Pop-up Alert، ما ينرسل بالچات
     await query.answer(text=hint_text, show_alert=True)
+
 
 
 async def roleplay_retry_same_skill_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -3409,7 +3466,10 @@ async def cp_start_patient(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             chat_id=query.message.chat_id,
             text=scene,
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]]
+                [
+                [InlineKeyboardButton("💡 تلميح سريري", callback_data="cp_hint")],
+                [InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]
+                ]
             ),
         )
     finally:
@@ -3460,9 +3520,15 @@ async def _cp_step_roleplay(update, context):
         f"<b>{case_data.get('patient_name', 'المريض')}:</b> {patient_response}"
     )
 
+    keyboard = [
+        [InlineKeyboardButton("💡 تلميح سريري", callback_data="cp_hint")],
+        [InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     await update.message.reply_text(
         text=response_text,
-         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]]),
+        reply_markup=reply_markup,
         parse_mode=ParseMode.HTML
     )
     return CLINICAL_PRACTICE_STATE
@@ -3735,6 +3801,7 @@ clinical_practice_conv = ConversationHandler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_clinical_practice_message),
             CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"),
             CallbackQueryHandler(cp_start_patient, pattern="^cp_start_patient$"),
+            CallbackQueryHandler(cp_hint_callback, pattern="^cp_hint$"),
             CallbackQueryHandler(cp_end_callback, pattern="^cp_end$"),
             CallbackQueryHandler(cp_cancel_callback, pattern="^psy_main$"),
             CommandHandler("cancel", cp_end_callback),
