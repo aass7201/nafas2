@@ -3395,6 +3395,107 @@ User Title: {user_title}
         return f"يدخل شخص يتنفس باضطراب... *(ينظر للأرض، يتشحذ، يتنفس بسرعة)*\n\nيقول: 'دكتور... أنا هنا لأنني أشعر أنني ما ألاقي طريقة أبدأ منها.'"
 
 
+async def _cp_ai_generate_intake_card(context, case_data: dict, student_name: str, user_title: str) -> str:
+    """Generate ONLY the intake profile card — no patient entrance or dialogue."""
+    patient_name = case_data.get("patient_name", "المريض")
+    patient_age = case_data.get("age", "22")
+    patient_gender = case_data.get("patient_gender", "")
+    complaint = case_data.get("complaint", "")
+    profession = case_data.get("profession", "")
+
+    gender_text = ""
+    if patient_gender == "male":
+        gender_text = " (ذكر)"
+    elif patient_gender == "female":
+        gender_text = " (أنثى)"
+
+    prof_text = ""
+    if profession:
+        prof_text = f"💼 <b>الوظيفة/التخصص:</b> {profession}\n"
+
+    system_prompt = f"""أنت مشرف سريري عراقي خبير. 
+
+User Name: {student_name}
+User Title: {user_title}
+قاعدة صارمة: لا تستخدم أسماء أزرار قائمة الموقع كاسم للطالب. عنونه باستخدام {user_title} {student_name} فقط.
+
+المهمة: صيّغ بطاقة حالة سريرية موجزة وواضحة باللغة العربية. لا تشمل أي دخول المريض أو حواره. استخدم تنسيق HTML فقط.
+المحتوى المطلوب تحديده بالضبط:
+- اسم المريض
+- العمر
+- الجنس (إن توافر)
+- الوظيفة/التخصص (اكتبها بناءً على سياق الشكوى السريرية)
+- الشكوى الرئيسية
+
+اكتبها كبطاقة موسّقة، مختصرة، احترافية، باللهجة العراقية البيضاء.
+"""
+
+    try:
+        intake = await call_gemini_api(
+            user_message=f"المريض: {patient_name}، العمر: {patient_age}، الشكوى: {complaint}، الوظيفة: {profession or 'غير محدد'}",
+            system_instruction=system_prompt,
+            chat_history=[]
+        )
+        return intake.strip()
+    except Exception:
+        return (
+            f"📋 <b>بطاقة الحالة السريرية</b>\n"
+            f"👤 <b>الاسم:</b> {patient_name}{gender_text}\n"
+            f"🎂 <b>العمر:</b> {patient_age}\n"
+            f"{prof_text}"
+            f"🩺 <b>الشكوى الرئيسية:</b> {complaint}"
+        )
+
+
+async def cp_enter_patient_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """STEP 2: Generate patient entrance scene (body language + opening line) only."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+
+    data = context.user_data.get("cp_data", {})
+    case_data = data.get("case_data", {})
+
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(
+        send_typing_periodically(context.bot, query.message.chat_id, stop_typing)
+    )
+
+    try:
+        data["step"] = "roleplay"
+        data["history"] = []
+
+        entrance = await _cp_ai_generate_patient_intro(
+            context, case_data,
+            data.get("student_name", "الطالب"),
+            data.get("user_title", "دكتور")
+        )
+
+        keyboard = [
+            [InlineKeyboardButton("💡 تلميح سريري", callback_data="cp_hint")],
+            [InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=entrance,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
+    finally:
+        stop_typing.set()
+        try:
+            await typing_task
+        except Exception:
+            pass
+
+    return CLINICAL_PRACTICE_STATE
+
+
 async def _cp_step_get_name(update, context, name):
     if not name or len(name.strip()) < 2:
         await update.message.reply_text(
@@ -3408,69 +3509,28 @@ async def _cp_step_get_name(update, context, name):
     cp_data = context.user_data.get("cp_data", {})
     cp_data["student_name"] = student_name
     cp_data["user_title"] = user_title
-    cp_data["step"] = "briefing"
+    cp_data["step"] = "intake"
     context.user_data["cp_data"] = cp_data
 
-    await update.message.reply_text("⏳ جاري تحضير التوجيهات... 🕐")
+    await update.message.reply_text("⏳ جاري تحضير بطاقة الحالة... 🕐", reply_markup=ReplyKeyboardRemove())
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
         send_typing_periodically(context.bot, update.effective_chat.id, stop_typing)
     )
     try:
-        briefing = await _cp_ai_generate_briefing(context, student_name, user_title)
-        await update.message.reply_text(
-            text=briefing,
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🩺 استقبال الحالة ودخول العيادة", callback_data="cp_start_patient")]]
-            ),
-        )
-    finally:
-        stop_typing.set()
-        try:
-            await typing_task
-        except Exception:
-            pass
-
-    return CLINICAL_PRACTICE_STATE
-
-
-async def cp_start_patient(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """STEP 3: Generate 100% dynamic patient entry scene via Gemini"""
-    query = update.callback_query
-    await query.answer()
-    try:
-        await query.message.delete()
-    except Exception:
-        pass
-
-    data = context.user_data.get("cp_data", {})
-    student_name = data.get("student_name", "الطالب")
-    user_title = data.get("user_title", "دكتور")
-
-    stop_typing = asyncio.Event()
-    typing_task = asyncio.create_task(
-        send_typing_periodically(context.bot, query.message.chat_id, stop_typing)
-    )
-    try:
         case_data = await _cp_prepare_case(context, student_name, user_title)
-        data["case_data"] = case_data
-        data["step"] = "roleplay"
-        data["history"] = []
+        cp_data["case_data"] = case_data
 
-        scene = await _cp_ai_generate_patient_scene(
+        intake = await _cp_ai_generate_intake_card(
             context, case_data, student_name, user_title
         )
-
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text=scene,
+        await update.message.reply_text(
+            text=intake,
             reply_markup=InlineKeyboardMarkup(
-                [
-                [InlineKeyboardButton("💡 تلميح سريري", callback_data="cp_hint")],
-                [InlineKeyboardButton("🏁 ختام الجلسة وتوليد التقرير السريني", callback_data="cp_end")]
-                ]
+                [[InlineKeyboardButton("🚪 إدخال المريض للعيادة", callback_data="cp_enter_patient")]]
             ),
+            parse_mode=ParseMode.HTML
         )
     finally:
         stop_typing.set()
@@ -3670,13 +3730,20 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     context.user_data.pop("cp_data", None)
 
+    # Remove main reply keyboard immediately
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="🧪 جاري تحضير العيادة...",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
     user_title, db_name = _get_user_title_and_name(context, user_id, first_name)
     has_name = _cp_db_has_name(user_id)
 
     context.user_data["cp_data"] = {
         "student_name": db_name if has_name else "",
         "user_title": user_title if has_name else "",
-        "step": "briefing" if has_name else "get_name",
+        "step": "intake" if has_name else "get_name",
     }
 
     stop_typing = asyncio.Event()
@@ -3685,13 +3752,19 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     try:
         if has_name:
-            briefing = await _cp_ai_generate_briefing(context, db_name, user_title)
+            case_data = await _cp_prepare_case(context, db_name, user_title)
+            context.user_data["cp_data"]["case_data"] = case_data
+
+            intake = await _cp_ai_generate_intake_card(
+                context, case_data, db_name, user_title
+            )
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=briefing,
+                text=intake,
                 reply_markup=InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("🩺 استقبال الحالة ودخول العيادة", callback_data="cp_start_patient")]]
+                    [[InlineKeyboardButton("🚪 إدخال المريض للعيادة", callback_data="cp_enter_patient")]]
                 ),
+                parse_mode=ParseMode.HTML
             )
         else:
             welcome = await _cp_ai_generate_welcome(
@@ -3743,7 +3816,7 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
         if user_text in ("🧪 الممارسة السريرية", "📚 الكتب والمناهج", "📄 الملخصات والملازم", "📝 الأسئلة الامتحانية", "📢 التبليغات والجدول", "ℹ️ عن البوت 🤍"):
             return await cp_start_callback(update, context)
         return await _cp_step_get_name(update, context, user_text)
-    elif step == "briefing":
+    elif step == "intake":
         return CLINICAL_PRACTICE_STATE
     elif step == "roleplay":
         return await _cp_step_roleplay(update, context)
@@ -3800,7 +3873,7 @@ clinical_practice_conv = ConversationHandler(
             MessageHandler(filters.Regex("^(❌ إلغاء|🏁 ختام الجلسة.*)$"), cp_end_callback),
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_clinical_practice_message),
             CallbackQueryHandler(cp_start_callback, pattern="^clinical_practice_start$"),
-            CallbackQueryHandler(cp_start_patient, pattern="^cp_start_patient$"),
+            CallbackQueryHandler(cp_enter_patient_callback, pattern="^cp_enter_patient$"),
             CallbackQueryHandler(cp_hint_callback, pattern="^cp_hint$"),
             CallbackQueryHandler(cp_end_callback, pattern="^cp_end$"),
             CallbackQueryHandler(cp_cancel_callback, pattern="^psy_main$"),
@@ -3811,7 +3884,7 @@ clinical_practice_conv = ConversationHandler(
         CommandHandler("cancel", cp_end_callback),
         MessageHandler(filters.Regex("^(❌ إلغاء|🏁 ختام الجلسة.*)$"), cp_end_callback),
         CallbackQueryHandler(cp_start_callback, pattern="^cp_new_session$"),
-        CallbackQueryHandler(cp_start_patient, pattern="^cp_start_patient$"),
+        CallbackQueryHandler(cp_enter_patient_callback, pattern="^cp_enter_patient$"),
         CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"),
     ],
 )
@@ -3996,7 +4069,7 @@ def main():
 
     # معالجات زرين التقييم في الممارسة السريرية (تعمل حتى بعد إنهاء المحادثة)
     application.add_handler(CallbackQueryHandler(cp_start_callback, pattern="^cp_new_session$"))
-    application.add_handler(CallbackQueryHandler(cp_start_patient, pattern="^cp_start_patient$"))
+    application.add_handler(CallbackQueryHandler(cp_enter_patient_callback, pattern="^cp_enter_patient$"))
     application.add_handler(CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"))
 
     # معالجات أوامر الأدمن
