@@ -4085,7 +4085,7 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
     try:
         await context.bot.send_message(
             chat_id=chat_id,
-            text=" ",
+            text=".",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
@@ -4159,7 +4159,7 @@ async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAU
     try:
         await context.bot.send_message(
             chat_id=chat_id,
-            text=" ",
+            text=".",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
@@ -4258,7 +4258,7 @@ async def _cp_step_roleplay(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await update.message.reply_text(
-            text=" ",
+            text=".",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
@@ -4285,13 +4285,13 @@ async def _cp_step_evaluate(update, context, user_text):
     try:
         if update.message:
             await update.message.reply_text(
-                text=" ",
+                text=".",
                 reply_markup=ReplyKeyboardRemove(),
             )
         elif update.callback_query:
             await context.bot.send_message(
                 chat_id=update.callback_query.message.chat_id,
-                text=" ",
+                text=".",
                 reply_markup=ReplyKeyboardRemove(),
             )
     except Exception:
@@ -4431,7 +4431,7 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     await context.bot.send_message(
         chat_id=chat_id,
-        text=" ",
+        text=".",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -4590,7 +4590,7 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         await context.bot.send_message(
             chat_id=chat_id,
-            text=" ",
+            text=".",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
