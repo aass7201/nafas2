@@ -6,10 +6,10 @@ services:
     container_name: nafas2-bot
     restart: unless-stopped
     environment:
-      - BOT_TOKEN=8897033696:AAHk2wPS82MCzC29vlZ7pY9ex8neyPLa9Z4
-      - ADMIN_ID=8993961580
-      - GEMINI_API_KEY=ضع_مفتاح_Gemini_هنا
-      - DATABASE_URL=postgresql://user:password@localhost:5432/nafas2
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_ID=${ADMIN_ID}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DATABASE_URL=${DATABASE_URL}
     # للسيرفرات التي تحتاج health check
     # healthcheck:
     #   test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]

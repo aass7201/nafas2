@@ -42,10 +42,10 @@ pip install -r requirements.txt
 # إنشاء ملف .env
 echo "⚙️ إنشاء ملف الإعدادات..."
 cat > .env << 'ENVEOF'
-BOT_TOKEN=8897033696:AAHk2wPS82MCzC29vlZ7pY9ex8neyPLa9Z4
-ADMIN_ID=8993961580
-GEMINI_API_KEY=ضع_مفتاح_Gemini_هنا
-DATABASE_URL=postgresql://user:password@host:5432/nafas2
+BOT_TOKEN=$BOT_TOKEN
+ADMIN_ID=$ADMIN_ID
+GEMINI_API_KEY=$GEMINI_API_KEY
+DATABASE_URL=$DATABASE_URL
 ENVEOF
 
 # تحديث bot.py لقراءة المتغيرات من البيئة

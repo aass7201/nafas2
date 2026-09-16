@@ -23,9 +23,9 @@ git push -u origin main
 ## 3. أضف متغيرات البيئة (Variables)
 في تبويب **Variables** أضف:
 ```
-BOT_TOKEN=8897033696:AAHk2wPS82MCzC29vlZ7pY9ex8neyPLa9Z4
+BOT_TOKEN=أضف_Token_هنا
 ADMIN_ID=8993961580
-GEMINI_API_KEY=مفتاحك_الصحيح_من_Google_AI_Studio
+GEMINI_API_KEY=أضف_مفتاح_Gemini_هنا
 DATABASE_URL=postgresql://user:password@host:5432/nafas2
 ```
 
@@ -75,9 +75,7 @@ curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/nafas2/main/install_or
 
 ## 5. ضع مفتاح Gemini API
 ```bash
-nano ~/nafas2/.env
-# غيّر: GEMINI_API_KEY=مفتاحك_الحقيقي
-# Ctrl+O, Enter, Ctrl+X
+echo "GEMINI_API_KEY=مفتاحك_الحقيقي" >> ~/nafas2/.env
 sudo systemctl restart nafas2
 ```
 
