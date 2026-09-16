@@ -4058,6 +4058,15 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     data["step"] = "intake"
 
+    # إظهار حالة الانتظار فوراً قبل استدعاء Gemini
+    try:
+        wait_msg = await context.bot.send_message(
+            chat_id=chat_id,
+            text="⏳ جاري استلام وتجهيز ملف المريض السريري...",
+        )
+    except Exception:
+        wait_msg = None
+
     case_data = data.get("case_data")
     if not case_data:
         stop_typing = asyncio.Event()
@@ -4083,6 +4092,11 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
     context.user_data["cp_data"] = data
 
     try:
+        if wait_msg:
+            try:
+                await wait_msg.delete()
+            except Exception:
+                pass
         await context.bot.send_message(
             chat_id=chat_id,
             text=".",
@@ -4109,6 +4123,8 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
 
     return CLINICAL_PRACTICE_STATE
+
+
 async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """البدء الفوري بمحادثة المريض - إرسال رسالة الافتتاح فوراً"""
     query = update.callback_query
