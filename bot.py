@@ -4601,7 +4601,7 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         f"━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"{report}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"❤️ مبروك! كل جلسة مختلفة عن اللي قبلها 🎲"
+        f"🌟 كل حالة تدرّب عليها تقرّبك خطوة لتكون أخصائي نفسي ناجح!"
     )
 
     keyboard = [
