@@ -4040,6 +4040,15 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     context.user_data["cp_data"] = data
 
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+    except Exception:
+        pass
+
     card = build_clinical_case_card_html(case_data, student_name, user_title)
     keyboard = _cp_intake_keyboard()
 
@@ -4102,6 +4111,15 @@ async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAU
 
     try:
         await wait_msg.delete()
+    except Exception:
+        pass
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="",
+            reply_markup=ReplyKeyboardRemove(),
+        )
     except Exception:
         pass
 
@@ -4196,6 +4214,14 @@ async def _cp_step_roleplay(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data["history"] = history
     context.user_data["cp_data"] = data
 
+    try:
+        await update.message.reply_text(
+            text="",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+    except Exception:
+        pass
+
     response_text = patient_response
     keyboard = _cp_live_keyboard()
 
@@ -4213,6 +4239,21 @@ async def _cp_step_evaluate(update, context, user_text):
     if not data or not data.get("case_data"):
         context.user_data.pop("cp_data", None)
         return ConversationHandler.END
+
+    try:
+        if update.message:
+            await update.message.reply_text(
+                text="",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+        elif update.callback_query:
+            await context.bot.send_message(
+                chat_id=update.callback_query.message.chat_id,
+                text="",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+    except Exception:
+        pass
 
     student_name = data.get("student_name", "الطالب")
     user_title = data.get("user_title", "دكتور")
@@ -4493,6 +4534,15 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     try:
         await wait_msg.delete()
+    except Exception:
+        pass
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="",
+            reply_markup=ReplyKeyboardRemove(),
+        )
     except Exception:
         pass
 
