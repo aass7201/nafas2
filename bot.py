@@ -836,13 +836,13 @@ async def student_get_subject_files(update: Update, context: ContextTypes.DEFAUL
 
 
 async def callback_close_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إغلاق الرسالة التفاعلية عند الضغط على زر إغلاق"""
+    """العودة إلى القائمة الرئيسية عند الضغط على زر إغلاق"""
     query = update.callback_query
-    await query.answer("تم الإغلاق")
-    try:
-        await query.message.delete()
-    except Exception:
-        pass
+    await query.answer()
+    await query.message.reply_text(
+        text="تم العودة للقائمة الرئيسية",
+        reply_markup=get_student_main_keyboard()
+    )
 
 
 async def books_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
