@@ -39,6 +39,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     KeyboardButton,
 )
 from telegram.constants import ParseMode
@@ -4262,7 +4263,7 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
         await context.bot.send_message(
             chat_id=chat_id,
             text=".",
-            reply_markup=get_student_main_keyboard(),
+            reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
         pass
@@ -4371,7 +4372,7 @@ async def _cp_step_get_name(update, context, name):
     cp_data["step"] = "intake"
     context.user_data["cp_data"] = cp_data
 
-    await update.message.reply_text("⏳ جاري تحضير بطاقة الحالة... 🕐", reply_markup=get_student_main_keyboard())
+    await update.message.reply_text("⏳ جاري تحضير بطاقة الحالة... 🕐", reply_markup=ReplyKeyboardRemove())
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
@@ -4440,7 +4441,7 @@ async def _cp_step_roleplay(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await update.message.reply_text(
             text=".",
-            reply_markup=get_student_main_keyboard(),
+            reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
         pass
@@ -4467,13 +4468,13 @@ async def _cp_step_evaluate(update, context, user_text):
         if update.message:
             await update.message.reply_text(
                 text=".",
-                reply_markup=get_student_main_keyboard(),
+                reply_markup=ReplyKeyboardRemove(),
             )
         elif update.callback_query:
             await context.bot.send_message(
                 chat_id=update.callback_query.message.chat_id,
                 text=".",
-                reply_markup=get_student_main_keyboard(),
+                reply_markup=ReplyKeyboardRemove(),
             )
     except Exception:
         pass
@@ -4616,7 +4617,7 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await context.bot.send_message(
         chat_id=chat_id,
         text=".",
-        reply_markup=get_student_main_keyboard(),
+        reply_markup=ReplyKeyboardRemove(),
     )
 
     welcome_text = (
