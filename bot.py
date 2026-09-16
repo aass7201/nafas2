@@ -4565,43 +4565,47 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         send_typing_periodically(context.bot, chat_id, stop_typing)
     )
 
-    try:
-        debrief_prompt = build_clinical_debrief_prompt(case_data, student_name, user_title, history)
+    student_count = len([h for h in history if h.get("role") == "therapist" and h.get("text", "").strip()])
 
-        report = await call_gemini_api(
-            user_message="ولّد تقرير ختام الجلسة السريرية",
-            system_instruction=debrief_prompt,
-            chat_history=[],
-            max_output_tokens=1000,
+    if student_count == 0:
+        report = (
+            "<b>شنو يا دكتور؟</b>\n\n"
+            "دخلت للعيادة وسلمت وطلعت بدون ما تحلي کلمة ويا المريض؟\n"
+            "⭐ التقييم: 1/10 على هذا الخروج السريع!\n"
+            "❌ ألغاط: المريض جاي يشتكي ولسه ما تعالجه. رجع أبدا من جديد."
         )
-        # معالجة النصوص الناقصة
-        if not report or not report.strip() or report.rstrip()[-1:] not in ".!?،،؛:":
-            report = (
-                "<b>⚠️ تعذر إكمال التقرير.</b>\n\n"
-                "⭐ التقييم العام: الجلسة تحتاج إعادة تقييم.\n"
-                "❌ الأغلاط: حاول التفاعل بشكل أعمق في الجلسات القادمة."
-            )
-    except Exception:
-        student_count = len([h for h in history if h.get("role") == "therapist" and h.get("text", "").strip()])
-        if student_count <= 1:
-            report = (
-                "<b>⚠️ تم إنهاء الجلسة بشكل مبكر جداً.</b>\n\n"
-                "لم يتم خوض حوار سريري مكتمل.\n"
-                "❌ الأغلاط: تدرّب على التفاعل الكامل واستخرج الشكوى في المرات القادمة.\n"
-                "⭐ التقييم: غير محدد - جلسة غير مكتملة"
-            )
-        else:
-            report = (
-                "<b>⚠️ حدث خلل أثناء تحليل الجلسة.</b>\n\n"
-                "⭐ التقييم العام: الجلسة تحتاج إعادة تقييم.\n"
-                "❌ الأغلاط: حاول التفاعل بشكل أعمق في الجلسات القادمة."
-            )
-    finally:
-        stop_typing.set()
+    else:
+        history_text = "\n".join(
+            [f"{h.get('role', 'unknown')}: {h.get('text', '')}" for h in history if h.get("text", "").strip()]
+        )
+
         try:
-            await typing_task
+            debrief_prompt = build_clinical_debrief_prompt(case_data, student_name, user_title, history)
+
+            report = await call_gemini_api(
+                user_message="ولّد تقرير ختام الجلسة السريرية\n\n--- سجل الحوار ---\n" + history_text,
+                system_instruction=debrief_prompt,
+                chat_history=[],
+                max_output_tokens=1000,
+            )
+            if not report or not report.strip() or report.rstrip()[-1:] not in ".!?،،؛:":
+                report = (
+                    "<b>⚠️ تعذر أكمال التقمير.</b>\n\n"
+                    "⭐ التقييم العام: الجلسة تحتاج إعادة تقييم.\n"
+                    "❌ ألغاط: حاول التعامل بشكل أعمق في الجلسات القادمة."
+                )
         except Exception:
-            pass
+            report = (
+                "<b>⚠️ حدث خلل أو أخطاء أو عطف.</b>\n\n"
+                "⭐ التقييم العام: الجلسة تحتاج إعادة تقييم.\n"
+                "❌ ألغاط: حاول التعامل بشكل أعمق في الجلسات القادمة."
+            )
+
+    stop_typing.set()
+    try:
+        await typing_task
+    except Exception:
+        pass
 
     try:
         await wait_msg.delete()
