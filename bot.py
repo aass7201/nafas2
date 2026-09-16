@@ -4505,7 +4505,8 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
     keyboard = [
-        [InlineKeyboardButton("🔄 جلسة جديدة", callback_data="cp_start_case")],
+        [InlineKeyboardButton("🔄 جلسة جديدة", callback_data="cp_start_case"),
+         InlineKeyboardButton("🏠 الخروج والعودة للقائمة الرئيسية", callback_data="cp_exit_to_main")],
     ]
 
     await context.bot.send_message(
@@ -4519,6 +4520,27 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     context.user_data.pop("cp_data", None)
 
     return ConversationHandler.END
+
+
+async def cp_exit_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """الخروج والعودة للقائمة الرئيسية"""
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+    context.user_data.pop("cp_data", None)
+    context.user_data.pop("clinical_chat_session", None)
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text="تم إنهاء الجلسة بنجاح، يمكنك اختيار قسم آخر من القائمة.",
+        reply_markup=get_student_main_keyboard(),
+        parse_mode=ParseMode.HTML,
+    )
+    return ConversationHandler.END
+
+
 async def cp_back_to_center(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """العودة للمركز الرئيسي من شاشة التقييم"""
     query = update.callback_query
@@ -4570,6 +4592,7 @@ clinical_practice_conv = ConversationHandler(
         CallbackQueryHandler(cp_start_case_callback, pattern="^cp_start_case$"),
         CallbackQueryHandler(cp_start_dialogue_callback, pattern="^cp_start_dialogue$"),
         CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"),
+        CallbackQueryHandler(cp_exit_to_main, pattern="^cp_exit_to_main$"),
     ],
 )
 
@@ -4780,6 +4803,7 @@ def main():
     application.add_handler(CallbackQueryHandler(cp_start_case_callback, pattern="^cp_start_case$"))
     application.add_handler(CallbackQueryHandler(cp_start_dialogue_callback, pattern="^cp_start_dialogue$"))
     application.add_handler(CallbackQueryHandler(cp_back_to_center, pattern="^cp_back_to_center$"))
+    application.add_handler(CallbackQueryHandler(cp_exit_to_main, pattern="^cp_exit_to_main$"))
 
     # معالجات أوامر الأدمن
     application.add_handler(CommandHandler("admin", admin_command))
