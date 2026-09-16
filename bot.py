@@ -4493,6 +4493,10 @@ def _cp_db_has_name(user_id: int) -> bool:
 
 async def handle_clinical_practice_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """معالجة رسائل الطالب في الممارسة السريرية"""
+    print(f"\n==========================================")
+    print(f"💬 [NEW MESSAGE] From User ID: {update.effective_user.id} ({update.effective_user.first_name}):")
+    print(f"👉 Text: {update.message.text}")
+    print(f"==========================================\n", flush=True)
     logger.info(f"💬 [MSG] User ({update.effective_user.id} - {update.effective_user.first_name}): {update.message.text}")
     user_text = update.message.text.strip()
 
