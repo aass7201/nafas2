@@ -40,7 +40,6 @@ from telegram import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
     KeyboardButton,
-    ReplyKeyboardRemove,
 )
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -784,7 +783,7 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
             "━━━━━━━━━━━━━━━━━━━━\n"
             "🧠 نفاس2 - وياكم خطوة بخطوة 🤍"
         )
-        await update.message.reply_text(text=msg, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(text=msg, parse_mode=ParseMode.MARKDOWN, reply_markup=get_student_main_keyboard())
 
     elif text in ["ℹ️ عن البوت 🤍", "ℹ️ حول البوت"]:
         about_text = (
@@ -798,7 +797,7 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
             "• قسم الدعم النفسي بمصادر إثرائية وتمارين عملية.\n\n"
             "كل التوفيق والنجاح يا دكاترة وأخصائيي المستقبل! 🌟🤍"
         )
-        await update.message.reply_text(text=about_text, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(text=about_text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_student_main_keyboard())
 
 
 async def student_get_subject_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1271,7 +1270,7 @@ async def start_counselor_chat_callback(update: Update, context: ContextTypes.DE
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="...",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=get_student_main_keyboard()
     )
     # حذف رسالة "..." المؤقتة
     # ملاحظة: لا يمكن حذفها مباشرة، لكن المستخدم لن يراها تقريباً
@@ -1693,7 +1692,7 @@ async def start_academic_chat_callback(update: Update, context: ContextTypes.DEF
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="...",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=get_student_main_keyboard()
     )
     return CHAT_ACADEMIC_STATE
 
@@ -1828,7 +1827,7 @@ async def roleplay_start_callback(update: Update, context: ContextTypes.DEFAULT_
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="...",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=get_student_main_keyboard()
     )
     return ROLEPLAY_STATE
 
@@ -4263,7 +4262,7 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
         await context.bot.send_message(
             chat_id=chat_id,
             text=".",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=get_student_main_keyboard(),
         )
     except Exception:
         pass
@@ -4340,7 +4339,7 @@ async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAU
         await context.bot.send_message(
             chat_id=chat_id,
             text=".",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=get_student_main_keyboard(),
         )
     except Exception:
         pass
@@ -4372,7 +4371,7 @@ async def _cp_step_get_name(update, context, name):
     cp_data["step"] = "intake"
     context.user_data["cp_data"] = cp_data
 
-    await update.message.reply_text("⏳ جاري تحضير بطاقة الحالة... 🕐", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("⏳ جاري تحضير بطاقة الحالة... 🕐", reply_markup=get_student_main_keyboard())
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
@@ -4441,7 +4440,7 @@ async def _cp_step_roleplay(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await update.message.reply_text(
             text=".",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=get_student_main_keyboard(),
         )
     except Exception:
         pass
@@ -4468,13 +4467,13 @@ async def _cp_step_evaluate(update, context, user_text):
         if update.message:
             await update.message.reply_text(
                 text=".",
-                reply_markup=ReplyKeyboardRemove(),
+                reply_markup=get_student_main_keyboard(),
             )
         elif update.callback_query:
             await context.bot.send_message(
                 chat_id=update.callback_query.message.chat_id,
                 text=".",
-                reply_markup=ReplyKeyboardRemove(),
+                reply_markup=get_student_main_keyboard(),
             )
     except Exception:
         pass
@@ -4617,7 +4616,7 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await context.bot.send_message(
         chat_id=chat_id,
         text=".",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=get_student_main_keyboard(),
     )
 
     welcome_text = (
@@ -4686,7 +4685,7 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
 
     if user_text in other_menu_buttons:
         context.user_data.pop("cp_data", None)
-        await update.message.reply_text(user_text, reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text(user_text, reply_markup=get_student_main_keyboard())
         return await handle_student_reply_buttons(update, context)
 
     if user_text in ("🧪 الممارسة السريرية", "العيادة", "استقباف الحالة", "التدريب السريري", "محاكاة"):
@@ -4795,7 +4794,7 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await context.bot.send_message(
             chat_id=chat_id,
             text=".",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=get_student_main_keyboard(),
         )
     except Exception:
         pass
