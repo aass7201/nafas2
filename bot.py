@@ -4429,14 +4429,11 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data.pop("cp_data", None)
     context.user_data["cp_data"] = {"step": "welcome"}
 
-    try:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=" ",
-            reply_markup=ReplyKeyboardRemove(),
-        )
-    except Exception:
-        pass
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=" ",
+        reply_markup=ReplyKeyboardRemove(),
+    )
 
     welcome_text = (
         "🧪 **الممارسة السريرية التفاعلية**\n"
