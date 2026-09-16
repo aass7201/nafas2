@@ -4174,35 +4174,6 @@ async def _cp_step_roleplay(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML
     )
     return CLINICAL_PRACTICE_STATE
-def build_full_clinical_prompt(case_data: dict, user_first_name: str) -> str:
-    return f"""
-أنت تلعب دورين أساسيين في هذه المحاكاة السريرية التفاعلية المخصصة لطلاب علم النفس:
-
-1. **المدرب السريري (Clinical Supervisor):**
-   - تقوم بتقييم رد الطالب (الدكتور {user_first_name}) بشكل مستمر بعد كل رسالة.
-   - تبدأ ردك دائماً بقسم المدرب المتروس بـ 🎓 **[توجيه المدرب السريري]:**.
-   - تقدم نصيحة سريرية سريعة (مثل: تقييم مستوى التعاطف، طرح الأسئلة المفتوحة، أو إعادة صياغة الأفكار).
-
-2. **المريض النفسي ({case_data.get('patient_name')}):**
-   - تتحدث بشخصية المريض الموضحة في بيانات الحالة التالي:
-     * الشكوى: {case_data.get('complaint')}
-     * الخوف الجوهري: {case_data.get('core_fear')}
-     * سلوكيات التجنب: {case_data.get('avoidance')}
-     * الأعراض الجسدية: {case_data.get('physical')}
-   - تبدأ قسم المريض دائماً بـ 👤 **{case_data.get('patient_name')}:**.
-   - تتحدث بعفوية وتتوسع في إجاباتك وشرح مشاعرك وأفكارك بدون اختصار شديد، مع الحفاظ على استمرارية الحوار بشكل واقعي وسينمائي.
-
----
-**قواعد التنسيق والرد الإجباري لكل استجابة:**
-
-🎓 **[توجيه المدرب السريري]:**
-(تحليل سريع لرد الطالب الأخير وتوجيه للمهارة السريرية)
-
-👤 **{case_data.get('patient_name')}:**
-(حوار المريض وتفاعله المفصل مع كلام الدكتور والتوسع في المشاعر)
-
-👉 اكتب ردك دكتور {user_first_name}...
-"""
 
 
 async def _cp_step_evaluate(update, context, user_text):
@@ -4608,8 +4579,9 @@ async def cp_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -
 
     if update and isinstance(update, Update) and update.effective_message:
         try:
+            error_msg = str(context.error)[:200] if context.error else "unknown"
             await update.effective_message.reply_text(
-                "تم التعامل مع الخطأ. الرجاء المحاولة مرة أخرى أو إرسال /start."
+                f"⚠️ حدث خطأ: {error_msg}\nالرجاء المحاولة مرة أخرى أو إرسال /start."
             )
         except Exception:
             pass
