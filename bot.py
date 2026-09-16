@@ -3040,7 +3040,16 @@ async def repair_start_callback(update: Update, context: ContextTypes.DEFAULT_TY
         f"تفضلوا واختاروا القسم اللي تحتاجوه من القائمة أدناه 👇🌸"
     )
 
-    await query.message.edit_text(
+    try:
+        await context.bot.delete_message(
+            chat_id=query.message.chat_id,
+            message_id=query.message.message_id
+        )
+    except Exception:
+        pass
+
+    await context.bot.send_message(
+        chat_id=user.id,
         text=welcome_text,
         reply_markup=get_student_main_keyboard(),
         parse_mode=ParseMode.MARKDOWN
