@@ -4283,7 +4283,7 @@ async def _cp_prepare_case(context, student_name: str, user_title: str) -> dict:
     import asyncio
     try:
         skill_idx = random.randint(0, len(SKILLS) - 1)
-        case_data = await asyncio.to_thread(generate_dynamic_case, skill_idx)
+        case_data = await generate_dynamic_case(skill_idx)
     except Exception:
         case_data = random.choice(CASE_POOL).copy()
     try:
