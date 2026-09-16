@@ -89,6 +89,46 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+# =============================================================================
+#                   دوال التسجيل والتتبع (Logging Helpers)
+# =============================================================================
+
+def _get_user_info(update: Update) -> tuple:
+    """الحصول على معلومات المستخدم"""
+    if update.effective_user:
+        return update.effective_user.id, update.effective_user.first_name or "Unknown"
+    if update.callback_query and update.callback_query.from_user:
+        return update.callback_query.from_user.id, update.callback_query.from_user.first_name or "Unknown"
+    return 0, "Unknown"
+
+
+def log_user_action(update: Update, action_type: str, detail: str):
+    """تسجيل إجراء عام للمستخدم"""
+    uid, uname = _get_user_info(update)
+    logger.info(f"🔘 [{action_type}] User ID: {uid} ({uname}) → {detail}")
+
+
+def log_inline_callback(update: Update, callback_data: str):
+    """تسجيل ضغطة زر شفاف (Inline Keyboard)"""
+    uid, uname = _get_user_info(update)
+    logger.info(f"🔘 [INLINE] User ID: {uid} ({uname}) → Callback: {callback_data}")
+
+
+def log_user_message(update: Update, msg_type: str, content: str):
+    """تسجيل رسالة نصية/ملف/صورة من المستخدم"""
+    uid, uname = _get_user_info(update)
+    logger.info(f"📩 [MSG-{msg_type}] User ID: {uid} ({uname}) → {content}")
+
+
+def log_ai_response(update: Update, user_input: str, ai_response: str):
+    """تسجيل استجابة الذكاء الاصطناعي"""
+    uid, uname = _get_user_info(update)
+    logger.info(f"🤖 [AI] User ID: {uid} ({uname})")
+    logger.info(f"🤖 [AI-INPUT] {user_input}")
+    logger.info(f"🤖 [AI-RESPONSE] {ai_response}")
+
+
 # قائمة المواد الدراسية لقسم علم النفس - المرحلة الثانية
 SUBJECTS = [
     "علم نفس النمو",
@@ -706,6 +746,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """التعامل مع ضغطات أزرار القائمة الرئيسية للطالب باللهجة العراقية"""
     text = update.message.text
+    log_user_action(update, "REPLY-KEYBOARD", f"Button: \"{text}\"")
 
     if text == "📚 الكتب والمناهج":
         cat_info = CATEGORIES["books"]
@@ -763,6 +804,7 @@ async def handle_student_reply_buttons(update: Update, context: ContextTypes.DEF
 async def student_get_subject_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إرسال الملفات الخاصة بالمادة المختارة للطالب مباشرة للتنزيل بأسلوب عراقي"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     try:
@@ -839,6 +881,7 @@ async def student_get_subject_files(update: Update, context: ContextTypes.DEFAUL
 async def callback_close_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """العودة إلى القائمة الرئيسية عند الضغط على زر إغلاق"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
     await query.message.reply_text(
         text="تم العودة للقائمة الرئيسية",
@@ -864,6 +907,7 @@ async def books_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def summaries_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """العودة لقائمة الملخصات والملازم"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     cat_info = CATEGORIES["summaries"]
@@ -879,6 +923,7 @@ async def summaries_menu_callback(update: Update, context: ContextTypes.DEFAULT_
 async def exams_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """العودة لقائمة الأسئلة الامتحانية"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     cat_info = CATEGORIES["exams"]
@@ -1191,6 +1236,7 @@ async def show_assessment_result(query, user_id: int, score: int, context: Conte
 async def start_counselor_chat_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """بدء جلسة محادثة تفاعلية وفضفضة مع المرشد النفسي الذكي"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     # تفريغ سجل المحادثة السابقة
@@ -1285,6 +1331,7 @@ async def handle_counselor_chat_message(update: Update, context: ContextTypes.DE
 async def end_counselor_chat_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """إنهاء محادثة المرشد النفسي والعودة للقائمة"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer("تم إنهاء الجلسة")
     context.user_data.pop("gemini_counselor_history", None)
 
@@ -1603,6 +1650,7 @@ async def strategies_list_callback(update: Update, context: ContextTypes.DEFAULT
 async def start_academic_chat_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """بدء جلسة نقاش وتدريب أكاديمي وسريري مع المشرف الذكي"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     # فحص إذا تم الدخول من مناقشة حالة معينة
@@ -1699,6 +1747,7 @@ async def handle_academic_chat_message(update: Update, context: ContextTypes.DEF
 async def end_academic_chat_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """إنهاء جلسة النقاش الأكاديمي والعودة"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer("تم إنهاء الجلسة الأكاديمية")
     context.user_data.pop("gemini_academic_history", None)
     context.user_data.pop("academic_current_case", None)
@@ -1737,6 +1786,7 @@ async def end_academic_chat_callback(update: Update, context: ContextTypes.DEFAU
 async def roleplay_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """بدء اختبار التدريب السريري العملي: الطالب يصير أخصائي ويواجه عميل"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     # تفريغ سجل المحادثة السابقة
@@ -1786,6 +1836,7 @@ async def roleplay_start_callback(update: Update, context: ContextTypes.DEFAULT_
 async def roleplay_next_scenario_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """توليد سيناريو عميل جديد عبر Gemini - خطوة بخطوة، مهارة وحدة كل جولة"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     stop_typing = asyncio.Event()
@@ -2134,6 +2185,7 @@ async def handle_roleplay_message(update: Update, context: ContextTypes.DEFAULT_
 async def end_roleplay_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """إنهاء اختبار التدريب السريري العملي"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer("تم إنهاء الاختبار العملي")
     context.user_data.pop("roleplay_history", None)
     context.user_data.pop("roleplay_scenario", None)
@@ -2171,6 +2223,7 @@ async def end_roleplay_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def cp_hint_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Pop-up Beginner Response Helper: Shows a brief hint via Telegram alert without cluttering chat."""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()  # answer immediately to clear loading state
 
     cp_data = context.user_data.get("cp_data", {})
@@ -2309,6 +2362,7 @@ async def cp_hint_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def roleplay_retry_same_skill_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """إعادة نفس الجولة (نفس المهارة) بحالة عميل جديدة للتمرين"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     # لا نزيد الجولة، نثبت نفس رقم الجولة ونولد سيناريو جديد
@@ -2353,6 +2407,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def admin_stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض إحصائيات البوت الشاملة"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     if not is_admin(query.from_user.id):
         await query.answer("⛔️ غير مصرح لك.", show_alert=True)
         return
@@ -2402,6 +2457,7 @@ async def admin_stats_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def admin_back_to_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """العودة للشاشة الرئيسية للوحة التحكم"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     if not is_admin(query.from_user.id):
         await query.answer("⛔️ غير مصرح لك.", show_alert=True)
         return
@@ -2422,6 +2478,7 @@ async def admin_back_to_main_callback(update: Update, context: ContextTypes.DEFA
 async def admin_close_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إغلاق لوحة تحكم الأدمن"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer("تم إغلاق اللوحة")
     try:
         await query.message.delete()
@@ -2799,6 +2856,7 @@ async def upload_choose_subj_callback(update: Update, context: ContextTypes.DEFA
 async def upload_receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """استلام الملف وحفظ File ID في SQLite3"""
     message = update.message
+    log_user_message(update, "FILE", f"Type: {message.document and 'document' or message.photo and 'photo' or 'unknown'}")
     cat_key = context.user_data.get("upload_cat")
     subject_name = context.user_data.get("upload_subj")
 
@@ -2882,6 +2940,7 @@ async def upload_cancel_callback(update: Update, context: ContextTypes.DEFAULT_T
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """بدء الإذاعة والطلب من الأدمن إرسال الرسالة"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     if not is_admin(query.from_user.id):
         await query.answer("⛔️ غير مصرح لك.", show_alert=True)
         return ConversationHandler.END
@@ -2949,6 +3008,7 @@ async def broadcast_send_message(update: Update, context: ContextTypes.DEFAULT_T
 async def broadcast_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """إلغاء الإذاعة"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer("تم إلغاء الإذاعة")
     await query.message.edit_text(
         "❌ تم إلغاء الإذاعة العامة.",
@@ -2964,6 +3024,7 @@ async def broadcast_cancel_callback(update: Update, context: ContextTypes.DEFAUL
 async def admin_repair_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """إرسال إشعار إصلاح وتحديث البوت لجميع المستخدمين"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     if not is_admin(query.from_user.id):
         await query.answer("⛔️ غير مصرح لك.", show_alert=True)
         return ConversationHandler.END
@@ -3025,6 +3086,7 @@ async def admin_repair_broadcast(update: Update, context: ContextTypes.DEFAULT_T
 async def repair_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """العودة إلى القائمة الرئيسية عند ضغط زر بدء التشغيل"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer("✅ تم إعادة التشغيل", show_alert=False)
 
     user = query.from_user
@@ -3115,6 +3177,7 @@ async def schedule_cancel_callback(update: Update, context: ContextTypes.DEFAULT
 async def admin_manage_choose_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """اختيار القسم لعرض ملفاته وحذفها"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     if not is_admin(query.from_user.id):
         await query.answer("⛔️ غير مصرح لك.", show_alert=True)
         return
@@ -3161,6 +3224,7 @@ async def admin_manage_choose_subj(update: Update, context: ContextTypes.DEFAULT
 async def admin_manage_list_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض ملفات المادة مع أزرار حذف سريعة"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
 
     _, cat_key, subj_idx = query.data.split(":")
@@ -4120,6 +4184,7 @@ User Title: {user_title}
 async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """عرض بطاقة الحالة مع أزرار بدء المحاكاة وتلميح سريري"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
     try:
         await query.message.delete()
@@ -4226,6 +4291,7 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
 async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """البدء الفوري بمحادثة المريض - إرسال رسالة الافتتاح فوراً"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
     try:
         await query.message.delete()
@@ -4366,6 +4432,8 @@ async def _cp_step_roleplay(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+    log_ai_response(update, user_text[:500], patient_response[:1000])
+
     history.append({"role": "patient", "text": patient_response, "name": case_data.get("patient_name", "المريض")})
     data["history"] = history
     context.user_data["cp_data"] = data
@@ -4437,6 +4505,8 @@ async def _cp_step_evaluate(update, context, user_text):
             await typing_task
         except Exception:
             pass
+
+    log_ai_response(update, "تقييم الجلسة السريرية", report[:1000])
 
     final_msg = (
         f"🏁 <b>تقرير ختام الجلسة</b> 🌟\n"
@@ -4529,6 +4599,7 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     """مقدمة العيادة السريرية + زر الدخول"""
     query = update.callback_query if update.callback_query else None
     if query:
+        log_inline_callback(update, query.data)
         await query.answer()
         try:
             await query.message.delete()
@@ -4599,6 +4670,7 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
     print(f"👉 Text: {update.message.text}")
     print(f"==========================================\n", flush=True)
     logger.info(f"💬 [MSG] User ({update.effective_user.id} - {update.effective_user.first_name}): {update.message.text}")
+    log_user_message(update, "TEXT", update.message.text[:200])
     user_text = update.message.text.strip()
 
     data = context.user_data.get("cp_data", {})
@@ -4648,6 +4720,7 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return ConversationHandler.END
 
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
     chat_id = query.message.chat_id
 
@@ -4744,7 +4817,7 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         chat_id=chat_id,
         text=report_text,
         reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.HTML
     )
 
     context.user_data.pop("clinical_chat_session", None)
@@ -4756,6 +4829,7 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def cp_exit_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """الخروج والعودة للقائمة الرئيسية"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
     try:
         await query.message.delete()
@@ -4775,6 +4849,7 @@ async def cp_exit_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def cp_back_to_center(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """العودة للمركز الرئيسي من شاشة التقييم"""
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
     context.user_data.pop("cp_data", None)
     try:
@@ -4792,6 +4867,7 @@ async def cp_back_to_center(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def cp_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
+    log_inline_callback(update, query.data)
     await query.answer()
     await psy_main_callback(update, context)
     return ConversationHandler.END
