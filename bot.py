@@ -3466,34 +3466,76 @@ def build_patient_only_prompt(case_data: dict, student_name: str, user_title: st
 "كلام المريض المباشر بين علامات تنصيص"
 """
 
-def build_clinical_debrief_prompt(case_data: dict, student_name: str, user_title: str) -> str:
+def build_clinical_debrief_prompt(case_data: dict, student_name: str, user_title: str, history: list = None) -> str:
     first = _student_first_name(student_name)
     patient = case_data.get("patient_name", "المريض")
     skill_idx = int(case_data.get("skill_index", 0) or 0) % len(SKILLS)
     skill = SKILLS[skill_idx]["name"]
+
+    student_msgs = []
+    if history:
+        for h in history:
+            if h.get("role") == "therapist" and h.get("text", "").strip():
+                student_msgs.append(h.get("text", "").strip())
+
+    msg_count = len(student_msgs)
+    is_early = msg_count <= 1
+    is_short = 2 <= msg_count <= 3
+
+    history_section = ""
+    if history:
+        history_section = "\nسجل المحادثة الفعلي (رسائل الطالب فقط):\n"
+        for i, msg in enumerate(student_msgs, 1):
+            preview = (msg[:150] + "...") if len(msg) > 150 else msg
+            history_section += f"  {i}. {preview}\n"
+
+    early_warning = ""
+    if is_early:
+        early_warning = (
+            "\n⚠️ تحذير مهم: الطالب أرسل رسالة واحدة فقط قبل الإنهاء. "
+            "هذا يعني إنهاء مبكر جداً للجلسة دون خوض حوار سريري فعلي.\n"
+            "يجب أن توضّح في التقرير صراحةً: 'تم إنهاء الجلسة بشكل مبكر جداً دون خوض حوار سريري مكتمل.'\n"
+            "لا تمدح الطالب على مهارات لم يطبقها أبداً (لا تكتب عن تعاطف، احتواء، أو لغة جسد إذا لم يمارسها).\n"
+            "ركّز التقييم على توجيهه لأهمية التفاعل الكامل واستخراج الشكوى الحقيقية في المرات القادمة.\n"
+            "درجة التقييم العام يجب أن تكون 'غير محدد - جلسة غير مكتملة' بدل منح درجة عالية وهمية.\n"
+        )
+    elif is_short:
+        early_warning = (
+            "\n⚠️ ملاحظة: الطالب أرسل {count} رسالة فقط - جلسة قصيرة.\n"
+            "قيّم فقط ما تم فعلاً، ولا تخمّن مهارات إضافية لم يمارسها.\n"
+            "اذكر صراحةً أن التقييم مبدئي ويحتاج جلسة كاملة للتأكيد.\n".format(count=msg_count)
+        )
+
     return f"""أنت مشرف سريري عراقي مشجّع ومحترف. ولّد تقرير ختام جلسة (Debriefing Report) لطالب علم النفس.
 
 المعالج المتدرب: {user_title} {first}
 المريض: {patient}
 المهارة المستهدفة: {skill}
 الشكوى: {case_data.get('complaint', '')}
-
-المطلوب: تقرير سريري مشجّع ومقسّم بالضبط إلى هذه العناوين:
+{history_section}
+{early_warning}
+المطلوب: تقرير سريري صريح وواقعي مقسّم بالضبط إلى هذه العناوين:
 
 <b>💪 نقاط القوة</b>
-(3–5 نقاط عملية مبنية على كلام الطالب الفعلي في الجلسة)
+(3–5 نقاط عملية مبنية فقط على كلام الطالب الفعلي في الجلسة. إن لم يمارس الطالب مهارة معينة فلا تذكرها كنقطة قوة أبداً!)
 
 <b>🌱 فرص النمو</b>
 (2–4 فرص تطوير محددة وقابلة للتطبيق في الجلسة القادمة)
 
 <b>⭐ التقييم العام</b>
-(فقرة دافئة تلخص الأداء وتعطي درجة تقديرية من 10 مع تبرير إنساني غير قاسٍ)
+(فقرة تلخص الأداء الفعلي:
+- إذا كان هناك حوار كافٍ (4+ رسائل): أعطِ درجة تقديرية من 10 مع تبرير إنساني غير قاسٍ
+- إذا كان الإنهاء مبكراً (رسالة أو أقل): اكتب 'لم يُحدد بعد - الجلسة غير مكتملة'
+- إذا كان الحوار قصيراً (2-3 رسائل): اكتب 'تقييم مبدئي - يحتاج جلسة كاملة')
 
-القواعد:
-- اعتمد على نص الجلسة الكامل المرسل لك، لا تختلق أحداثاً لم تحصل.
-- نبرة مشجعة، باللهجة العراقية البيضاء المهنية.
-- استخدم HTML البسيط فقط (<b> و <i>).
-- لا تعد تمثيل دور المريض هنا.
+قواعد صارمة:
+1. اعتمد على نص الجلسة الكامل المرسل لك، لا تختلق أحداثاً لم تحصل أبداً.
+2. إذا كان عدد رسائل الطالب 1 أو أقل: لا تمدح مهارات لم يطبقها، لا تفترض تفاعلاً لم يحدث.
+3. إذا كان عدد رسائل الطالب 2-3: قيّم فقط ما تم فعلاً بوضوح، لا تخمّن.
+4. إذا كان عدد رسائل الطالب 4+: قيّم ردود الطالب الحقيقية بأسلوب نقد سريري موضوعي (نقاط قوة حقيقية + فرص نمو ملموسة).
+5. نبرة صادقة ومشجعة معاً، باللهجة العراقية البيضاء المهنية.
+6. استخدم HTML البسيط فقط (<b> و <i>).
+7. لا تعد تمثيل دور المريض هنا.
 """
 
 
@@ -4258,13 +4300,14 @@ async def _cp_step_evaluate(update, context, user_text):
     student_name = data.get("student_name", "الطالب")
     user_title = data.get("user_title", "دكتور")
     case_data = data.get("case_data", {})
+    history = data.get("history", [])
 
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(
         send_typing_periodically(context.bot, update.effective_chat.id, stop_typing)
     )
 
-    debrief_prompt = build_clinical_debrief_prompt(case_data, student_name, user_title)
+    debrief_prompt = build_clinical_debrief_prompt(case_data, student_name, user_title, history)
 
     try:
         report = await call_gemini_api(
@@ -4314,6 +4357,8 @@ async def _cp_step_evaluate(update, context, user_text):
             parse_mode=ParseMode.HTML
         )
     return ConversationHandler.END
+
+
 async def generate_dynamic_case(skill_index: int) -> dict:
     """Generate a clinical case dynamically via Gemini"""
     if not _HAS_GENAI:
