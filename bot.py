@@ -642,10 +642,11 @@ def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🗓️ تحديث التبليغات والجدول", callback_data="admin_schedule_start")
         ],
         [
-            InlineKeyboardButton("🗑️ إدارة وحذف الملفات", callback_data="admin_manage_choose_cat"),
-            InlineKeyboardButton("🔑 ضبط مفتاح الذكاء الاصطناعي", callback_data="admin_gemini_start")
+            InlineKeyboardButton("📢 إرسال إشعار إصلاح وتحديث البوت", callback_data="admin_repair_broadcast"),
+            InlineKeyboardButton("🗑️ إدارة وحذف الملفات", callback_data="admin_manage_choose_cat")
         ],
         [
+            InlineKeyboardButton("🔑 ضبط مفتاح الذكاء الاصطناعي", callback_data="admin_gemini_start"),
             InlineKeyboardButton("🤖 إدارة توجيهات الذكاء الاصطناعي", callback_data="admin_prompts_start")
         ],
         [
@@ -2957,6 +2958,97 @@ async def broadcast_cancel_callback(update: Update, context: ContextTypes.DEFAUL
 
 
 # =============================================================================
+#     إشعار إصلاح وتحديث البوت (Repair/Update Broadcast)
+# =============================================================================
+
+async def admin_repair_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """إرسال إشعار إصلاح وتحديث البوت لجميع المستخدمين"""
+    query = update.callback_query
+    if not is_admin(query.from_user.id):
+        await query.answer("⛔️ غير مصرح لك.", show_alert=True)
+        return ConversationHandler.END
+
+    await query.answer()
+
+    users = db.get_all_user_ids()
+    total = len(users)
+
+    if total == 0:
+        await query.message.edit_text(
+            "⚠️ ماكو أي طلاب مسجلين بالبوت حالياً حتى ننشرش لهم.",
+            reply_markup=get_admin_dashboard_keyboard()
+        )
+        return ConversationHandler.END
+
+    broadcast_text = (
+        "🛠 تم إصلاح جميع المشاكل وتحديث البوت بنجاح! "
+        "اضغط على الزر أدناه لإعادة تشغيل البوت واستعراض القائمة الرئيسية 🚀"
+    )
+
+    inline_keyboard = [
+        [InlineKeyboardButton("▶️ بدء التشغيل (/start)", callback_data="repair_start")]
+    ]
+
+    success = 0
+    failed = 0
+
+    for uid in users:
+        try:
+            await context.bot.send_message(
+                chat_id=uid,
+                text=broadcast_text,
+                reply_markup=InlineKeyboardMarkup(inline_keyboard)
+            )
+            success += 1
+        except Exception:
+            failed += 1
+
+        await asyncio.sleep(0.04)
+
+    admin_report = (
+        "📢 **إشعار الإصلاح والتحديث تم إرساله!**\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ تم الإرسال بنجاح إلى: **{success}** طالب\n"
+        f"❌ تعذر الإرسال إلى: **{failed}**\n"
+        f"👥 إجمالي الطلاب: **{total}**\n"
+        "━━━━━━━━━━━━━━━━━━━━"
+    )
+
+    await query.message.edit_text(
+        admin_report,
+        reply_markup=get_admin_dashboard_keyboard(),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    return ConversationHandler.END
+
+
+async def repair_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """العودة إلى القائمة الرئيسية عند ضغط زر بدء التشغيل"""
+    query = update.callback_query
+    await query.answer("✅ تم إعادة التشغيل", show_alert=False)
+
+    user = query.from_user
+    full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "طالب علم النفس"
+    try:
+        db.register_user(user.id, user.username, full_name)
+    except Exception:
+        pass
+
+    welcome_text = (
+        f"يا هلا وناغمة بيكم زملاءنا وأعزاءنا بقسم علم النفس - جامعة كربلاء (المرحلة الثانية)! 🧠✨\n\n"
+        f"هذا البوت بيتكم الصغير المخصص حتى يجمعنا، ويسهل عليكم الوصول لكل الكتب والملازم والأسئلة الخاصة بمرحلتنا بضغطة زر واحدة.\n\n"
+        f"تفضلوا واختاروا القسم اللي تحتاجوه من القائمة أدناه 👇🌸"
+    )
+
+    await query.message.edit_text(
+        text=welcome_text,
+        reply_markup=get_student_main_keyboard(),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    return ConversationHandler.END
+
+
+# =============================================================================
 #          14. محادثة تحديث التبليغات والجدول (Schedule/Announcements)
 # =============================================================================
 
@@ -4940,6 +5032,8 @@ def main():
     application.add_handler(CallbackQueryHandler(admin_stats_callback, pattern="^admin_stats$"))
     application.add_handler(CallbackQueryHandler(admin_back_to_main_callback, pattern="^admin_back_to_main$"))
     application.add_handler(CallbackQueryHandler(admin_close_callback, pattern="^admin_close$"))
+    application.add_handler(CallbackQueryHandler(admin_repair_broadcast, pattern="^admin_repair_broadcast$"))
+    application.add_handler(CallbackQueryHandler(repair_start_callback, pattern="^repair_start$"))
 
     # معالجات إدارة وحذف الملفات (الأدمن)
     application.add_handler(CallbackQueryHandler(admin_manage_choose_cat, pattern="^admin_manage_choose_cat$"))
