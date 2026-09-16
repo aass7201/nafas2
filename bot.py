@@ -4085,7 +4085,7 @@ async def cp_start_case_callback(update: Update, context: ContextTypes.DEFAULT_T
     try:
         await context.bot.send_message(
             chat_id=chat_id,
-            text="",
+            text=" ",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
@@ -4159,7 +4159,7 @@ async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAU
     try:
         await context.bot.send_message(
             chat_id=chat_id,
-            text="",
+            text=" ",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
@@ -4258,7 +4258,7 @@ async def _cp_step_roleplay(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await update.message.reply_text(
-            text="",
+            text=" ",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
@@ -4285,13 +4285,13 @@ async def _cp_step_evaluate(update, context, user_text):
     try:
         if update.message:
             await update.message.reply_text(
-                text="",
+                text=" ",
                 reply_markup=ReplyKeyboardRemove(),
             )
         elif update.callback_query:
             await context.bot.send_message(
                 chat_id=update.callback_query.message.chat_id,
-                text="",
+                text=" ",
                 reply_markup=ReplyKeyboardRemove(),
             )
     except Exception:
@@ -4432,7 +4432,7 @@ async def cp_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     try:
         await context.bot.send_message(
             chat_id=chat_id,
-            text="",
+            text=" ",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
@@ -4520,6 +4520,8 @@ async def handle_clinical_practice_message(update: Update, context: ContextTypes
         return await _cp_step_evaluate(update, context, user_text)
 
     return CLINICAL_PRACTICE_STATE
+
+
 async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """انهاء الجلسة وتوليد التقرير السريري"""
     data = context.user_data.get("cp_data", {})
@@ -4554,7 +4556,7 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
     try:
-        debrief_prompt = build_clinical_debrief_prompt(case_data, student_name, user_title)
+        debrief_prompt = build_clinical_debrief_prompt(case_data, student_name, user_title, history)
 
         report = await call_gemini_api(
             user_message="ولّد تقرير ختام الجلسة السريرية",
@@ -4562,14 +4564,20 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             chat_history=[]
         )
     except Exception:
-        report = (
-            "🌟 **نقاط القوة:**\n"
-            "- جيد في الاستماع والتعاطف مع المريض.\n"
-            "- حاول طرح أسئلة مفتوحة.\n\n"
-            "🌱 **فرص النمو:**\n"
-            "- طوّر مهارات إضافية.\n\n"
-            "⭐ **التقييم:** 7/10"
-        )
+        student_count = len([h for h in history if h.get("role") == "therapist" and h.get("text", "").strip()])
+        if student_count <= 1:
+            report = (
+                "<b>⚠️ تم إنهاء الجلسة بشكل مبكر جداً.</b>\n\n"
+                "لم يتم خوض حوار سريري مكتمل.\n"
+                "🌱 فرص النمو: تدرّب على التفاعل الكامل واستخراج الشكوى في المرات القادمة.\n"
+                "⭐ التقييم: غير محدد - جلسة غير مكتملة"
+            )
+        else:
+            report = (
+                "<b>⚠️ حدث خلل أثناء تحليل الجلسة.</b>\n\n"
+                "⭐ التقييم العام: الجلسة تحتاج إعادة تقييم.\n"
+                "🌱 فرص النمو: حاول التفاعل بشكل أعمق في الجلسات القادمة."
+            )
     finally:
         stop_typing.set()
         try:
@@ -4585,7 +4593,7 @@ async def cp_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         await context.bot.send_message(
             chat_id=chat_id,
-            text="",
+            text=" ",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
