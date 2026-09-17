@@ -4336,22 +4336,13 @@ async def cp_start_dialogue_callback(update: Update, context: ContextTypes.DEFAU
     except Exception:
         pass
 
-    try:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=".",
-            reply_markup=get_student_main_keyboard(),
-        )
-    except Exception:
-        pass
-
     response_text = f"<b>👤 {case_data.get('patient_name', 'المريض')}:</b> {opening}"
     keyboard = _cp_live_keyboard()
 
     await context.bot.send_message(
         chat_id=chat_id,
         text=response_text,
-        reply_markup=keyboard,
+        reply_markup=ReplyKeyboardRemove(),
         parse_mode=ParseMode.HTML,
     )
 
